@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EXO · Video sincronizzati</title>
+  <title>EXO · Annotazioni video</title>
   <style>
     :root { color-scheme: dark; font: 16px/1.45 system-ui, sans-serif; background: #11151b; color: #eef2f6; }
     * { box-sizing: border-box; }
@@ -19,7 +19,7 @@
     button { cursor: pointer; }
     button:hover:enabled { background: #354354; }
     button:disabled, select:disabled { opacity: .5; cursor: default; }
-    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #64c7f5; outline-offset: 3px; }
+    button:focus-visible, select:focus-visible, input:focus-visible, .annotation-handle:focus-visible { outline: 2px solid #64c7f5; outline-offset: 3px; }
     .visibility { margin-left: auto; }
     .visibility label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
     .visibility input { accent-color: #64c7f5; width: 17px; height: 17px; }
@@ -35,12 +35,35 @@
     .videos.frozen canvas { display: block; }
     .videos.frozen video { opacity: .01; }
     .videos.seeking .picture::after { content: 'Aggiornamento frame…'; position: absolute; inset: 0; display: grid; place-items: center; background: #050709; color: #aab5c2; }
+    .picture.drop-target { outline: 3px solid #64c7f5; outline-offset: -3px; }
     #bodyVideo, #bodyCanvas { transform: rotate(180deg); }
+    .labels-panel { margin: 0 0 10px; padding: 8px 12px; border: 1px solid #354250; border-radius: 8px; background: #1a212a; }
+    .labels-panel summary { cursor: pointer; font-weight: 600; }
+    #palette { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
+    .palette-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+    .palette-group strong { margin-right: 3px; color: #aab5c2; font-size: .8rem; }
+    .label-chip { padding: 4px 8px; border: 1px solid #63788a; border-radius: 5px; background: #293948; font-size: .82rem; cursor: grab; user-select: none; }
+    .label-chip:active { cursor: grabbing; }
     .timeline { position: sticky; bottom: 0; z-index: 2; margin-top: 10px; padding: 12px; border: 1px solid #303a46; border-radius: 8px; background: #1a212a; box-shadow: 0 -5px 20px #080b10a8; }
     .transport { margin-bottom: 6px; }
     .nav-icon { display: inline-block; font-size: .65rem; vertical-align: 1px; }
     .readout { margin-left: auto; font-variant-numeric: tabular-nums; color: #c7d7e5; }
     .scrub { position: relative; padding: 0 9px; background: #10151b; border: 1px solid #354250; border-radius: 4px; }
+    #annotationRows { max-height: min(24vh, 210px); overflow-y: auto; }
+    .annotation-row { padding: 4px 0 3px; border-bottom: 1px solid #293744; }
+    .annotation-caption { padding: 1px 5px; border: 0; background: none; color: #dce8f2; font-size: .78rem; text-align: left; }
+    .annotation-caption:hover { text-decoration: underline; background: none; }
+    .annotation-track { position: relative; height: 23px; background: linear-gradient(#ffffff0b,#ffffff0b) center/100% 1px no-repeat; }
+    .annotation-bar { position: absolute; top: 2px; height: 18px; min-width: 18px; border-radius: 3px; background: #62b4dd; }
+    .annotation-bar[data-level=mid] { background: #cda668; }
+    .annotation-bar[data-level=low] { background: #8fc88f; }
+    .annotation-bar[data-level=aux] { background: #b48ad8; }
+    .annotation-bar.pending { background-image: repeating-linear-gradient(45deg, #0000 0 5px, #ffffff55 5px 9px); }
+    .annotation-handle { position: absolute; top: 0; bottom: 0; width: 10px; border: 1px solid #10202a; background: #edf5f9; cursor: ew-resize; touch-action: none; }
+    .annotation-handle.start { left: 0; }
+    .annotation-handle.end { right: 0; }
+    .annotation-bar.point { min-width: 12px; width: 12px !important; }
+    .annotation-bar.point .annotation-handle { width: 12px; }
     #ruler { position: relative; height: 25px; color: #aab5c2; font-size: .7rem; font-variant-numeric: tabular-nums; }
     .tick { position: absolute; bottom: 0; height: 8px; border-left: 1px solid #7b8b9b; }
     .tick span { position: absolute; bottom: 8px; left: 3px; white-space: nowrap; }
@@ -52,9 +75,16 @@
     #status.warn { color: #f6c975; }
     #status.error { color: #ff9a9a; }
     #seekState { color: #f6c975; font-size: .85rem; }
-    dialog { color: #eef2f6; background: #242d38; border: 1px solid #465463; border-radius: 8px; max-width: min(90vw, 440px); }
+    dialog { color: #eef2f6; background: #242d38; border: 1px solid #465463; border-radius: 8px; max-width: min(94vw, 540px); max-height: 85vh; overflow-y: auto; }
     dialog::backdrop { background: #0009; }
     dialog p { margin-bottom: 12px; }
+    .edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .edit-grid [hidden] { display: none; }
+    .edit-grid label { display: grid; gap: 3px; }
+    .edit-grid input, .edit-grid select, .edit-grid textarea { width: 100%; min-width: 0; padding: 6px; color: #eef2f6; background: #141c24; border: 1px solid #607080; border-radius: 5px; font: inherit; }
+    .edit-wide { grid-column: 1 / -1; }
+    .dialog-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .dialog-actions button:last-child { margin-left: auto; }
     @media (max-width: 700px) { .visibility { margin-left: 0; width: 100%; } }
   </style>
 </head>
@@ -70,6 +100,8 @@
     </div>
   </div>
 
+  <details id="labelsPanel" class="labels-panel"><summary>Label · trascina sul video o clicca al frame iniziale</summary><div id="palette"></div></details>
+
   <div id="videos" class="videos">
     <section class="camera" data-camera="body"><h2>Body · RGB · ruotata 180°</h2><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas></div></section>
     <section class="camera" data-camera="external"><h2>Esterna</h2><div class="picture"><video id="externalVideo" muted playsinline preload="metadata"></video><canvas id="externalCanvas" aria-hidden="true"></canvas></div></section>
@@ -81,15 +113,36 @@
       <button id="previous" type="button" disabled aria-label="Frame precedente"><span class="nav-icon" aria-hidden="true">◀</span> Frame</button>
       <button id="play" type="button" disabled><span class="nav-icon" aria-hidden="true">▶</span> <span class="button-label">Riproduci</span></button>
       <button id="next" type="button" disabled aria-label="Frame successivo">Frame <span class="nav-icon" aria-hidden="true">▶</span></button>
+      <button id="endLabel" type="button" disabled>End · chiudi intervallo</button>
+      <button id="saveLabels" type="button" disabled>Salva</button>
       <button id="help" type="button" aria-label="Aiuto">?</button>
       <span id="readout" class="readout">Frame —</span>
     </div>
-    <div class="scrub"><div id="ruler" aria-hidden="true"></div><input id="slider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Posizione in frame"></div>
+    <div class="scrub"><div id="annotationRows" aria-label="Annotazioni della sequenza"></div><div id="ruler" aria-hidden="true"></div><input id="slider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Posizione in frame"></div>
     <span id="seekState" role="status" aria-live="polite"></span>
     <p id="status" role="status" aria-live="polite">Caricamento catalogo…</p>
   </div>
 </main>
 <dialog id="helpDialog" aria-label="Aiuto"><p id="helpDetails"></p><p>Frecce ← →: un frame · Barra spaziatrice: riproduci o pausa</p><p>Trascina l'angolo in basso a destra di una finestra per ridimensionarla.</p><button id="closeHelp" type="button">Chiudi</button></dialog>
+<dialog id="editDialog" aria-label="Modifica annotazione">
+  <form id="editForm">
+    <h2 id="editTitle"></h2>
+    <div class="edit-grid">
+      <label>Frame iniziale<input id="editStart" type="number" min="1" required></label>
+      <label>Frame finale<input id="editEnd" type="number" min="1" required></label>
+      <label class="for-mid">Ripetizione<input id="editRep" type="number" min="1" step="1"></label>
+      <label class="for-side">Lato<select id="editSide"></select></label>
+      <label class="for-direction">Direzione<select id="editDirection"></select></label>
+      <label class="for-low">Carico esterno<select id="editLoad"></select></label>
+      <label class="for-low">Punti di contatto<select id="editContact"></select></label>
+      <label class="for-phase">Fase<select id="editPhase"></select></label>
+      <label class="for-low">Target<input id="editTarget" maxlength="200"></label>
+      <label class="for-parent edit-wide">Label genitore (selezione multipla)<select id="editParents" multiple size="4"></select></label>
+      <label class="edit-wide">Nota<textarea id="editNote" rows="2" maxlength="5000"></textarea></label>
+    </div>
+    <div class="dialog-actions"><button type="submit">Applica</button><button id="deleteLabel" type="button">Elimina</button><button id="cancelEdit" type="button">Chiudi</button></div>
+  </form>
+</dialog>
 <script>
   const cameras = ['body', 'external', 'aria'];
   const videos = Object.fromEntries(cameras.map(camera => [camera, document.getElementById(camera + 'Video')]));
@@ -104,6 +157,11 @@
   const readout = document.getElementById('readout');
   const playButton = document.getElementById('play');
   const helpDialog = document.getElementById('helpDialog');
+  const palette = document.getElementById('palette');
+  const annotationRows = document.getElementById('annotationRows');
+  const endButton = document.getElementById('endLabel');
+  const saveButton = document.getElementById('saveLabels');
+  const editDialog = document.getElementById('editDialog');
   const controls = [slider, playButton, document.getElementById('previous'), document.getElementById('next')];
   let catalog = {};
   let frames = 0;
@@ -117,6 +175,233 @@
   let seekDone = Promise.resolve(true);
   const displayed = Object.fromEntries(cameras.map(camera => [camera, null]));
   const held = new Set();
+  let labelSchema = null;
+  let annotations = [];
+  let revision = null;
+  let dirty = false;
+  let editVersion = 0;
+  let saving = false;
+  let pendingId = null;
+  let editingId = null;
+  let activeSubject = '';
+  let activeSequence = '';
+  let draggingHandle = null;
+
+  function labelUrl() {
+    return `/api/labels?subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`;
+  }
+
+  async function getJson(url) {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+  }
+
+  function markDirty() {
+    dirty = true;
+    editVersion++;
+    saveButton.disabled = saving || !frames || pendingId !== null || !labelSchema?.task;
+  }
+
+  function syncTimes(record) {
+    record.t_start = (record.start_frame - 1) / 30;
+    record.t_end = record.level === 'aux' && record.label === 'sync'
+      ? record.t_start : record.end_frame / 30;
+  }
+
+  function recordSummary(record) {
+    const attributes = ['phase', 'rep', 'side', 'direction', 'external_load', 'contact_points', 'target', 'note']
+      .filter(name => record[name] !== null && record[name] !== '')
+      .map(name => `${name}: ${name === 'note' ? record[name].slice(0, 80) : record[name]}`);
+    const duration = record.level === 'aux' && record.label === 'sync'
+      ? `frame ${record.start_frame}`
+      : `frame ${record.start_frame}–${record.end_frame} · ${record.end_frame - record.start_frame + 1} frame`;
+    return `${record.level} · ${record.label} · ${duration}${attributes.length ? ' · ' + attributes.join(' · ') : ''}`
+      + (record.id === pendingId ? ' · in attesa di End' : '');
+  }
+
+  function placeBar(bar, record) {
+    const span = Math.max(1, frames - 1);
+    bar.style.left = `${(record.start_frame - 1) / span * 100}%`;
+    bar.style.width = `${(record.end_frame - record.start_frame) / span * 100}%`;
+  }
+
+  function renderAnnotations() {
+    annotationRows.replaceChildren();
+    for (const record of annotations) {
+      const row = document.createElement('div');
+      row.className = 'annotation-row';
+      const caption = document.createElement('button');
+      caption.className = 'annotation-caption';
+      caption.type = 'button';
+      caption.textContent = recordSummary(record);
+      caption.title = record.note || recordSummary(record);
+      caption.disabled = record.id === pendingId;
+      caption.addEventListener('click', () => openEditor(record.id));
+      const track = document.createElement('div');
+      track.className = 'annotation-track';
+      const bar = document.createElement('div');
+      bar.className = `annotation-bar${record.id === pendingId ? ' pending' : ''}`;
+      bar.dataset.level = record.level;
+      if (record.level === 'aux' && record.label === 'sync') bar.classList.add('point');
+      placeBar(bar, record);
+      for (const edge of (bar.classList.contains('point') ? ['start'] : ['start', 'end'])) {
+        const handle = document.createElement('div');
+        handle.className = `annotation-handle ${edge}`;
+        handle.role = 'slider';
+        handle.tabIndex = record.id === pendingId ? -1 : 0;
+        handle.setAttribute('aria-label', `${edge === 'start' ? 'Inizio' : 'Fine'} ${record.label}`);
+        handle.setAttribute('aria-valuemin', '1');
+        handle.setAttribute('aria-valuemax', String(frames));
+        handle.setAttribute('aria-valuenow', String(record[edge === 'start' ? 'start_frame' : 'end_frame']));
+        handle.addEventListener('pointerdown', event => {
+          if (record.id === pendingId) return;
+          event.preventDefault();
+          event.stopPropagation();
+          draggingHandle = {record, edge, track, bar, caption};
+          handle.setPointerCapture(event.pointerId);
+        });
+        handle.addEventListener('pointermove', event => {
+          if (!draggingHandle || draggingHandle.record !== record || !handle.hasPointerCapture(event.pointerId)) return;
+          const box = track.getBoundingClientRect();
+          const frame = Math.max(1, Math.min(frames, Math.round((event.clientX - box.left) / box.width * (frames - 1)) + 1));
+          adjustEdge(record, edge, frame);
+          placeBar(bar, record);
+          caption.textContent = recordSummary(record);
+          handle.setAttribute('aria-valuenow', String(record[edge === 'start' ? 'start_frame' : 'end_frame']));
+        });
+        handle.addEventListener('pointerup', () => { draggingHandle = null; renderAnnotations(); });
+        handle.addEventListener('pointercancel', () => { draggingHandle = null; renderAnnotations(); });
+        handle.addEventListener('keydown', event => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          event.stopPropagation();
+          adjustEdge(record, edge, record[edge === 'start' ? 'start_frame' : 'end_frame']
+            + (event.key === 'ArrowRight' ? 1 : -1));
+          renderAnnotations();
+          annotationRows.querySelectorAll('.annotation-row')[annotations.indexOf(record)]
+            .querySelector(`.annotation-handle.${edge}`).focus();
+        });
+        bar.append(handle);
+      }
+      track.append(bar);
+      row.append(caption, track);
+      annotationRows.append(row);
+    }
+  }
+
+  function adjustEdge(record, edge, frame) {
+    if (record.level === 'aux' && record.label === 'sync') {
+      record.start_frame = record.end_frame = Math.max(1, Math.min(frames, frame));
+    } else if (edge === 'start') {
+      record.start_frame = Math.max(1, Math.min(record.end_frame, frame));
+    } else {
+      record.end_frame = Math.max(record.start_frame, Math.min(frames, frame));
+    }
+    syncTimes(record);
+    markDirty();
+  }
+
+  function renderPalette() {
+    palette.replaceChildren();
+    if (!labelSchema?.task) {
+      palette.textContent = 'Nessuna label definita nello schema per questa sequenza.';
+      return;
+    }
+    for (const [level, title] of [['high', 'High'], ['mid', 'Mid'], ['low', 'Low'], ['aux', 'Aux']]) {
+      const group = document.createElement('div');
+      group.className = 'palette-group';
+      const heading = document.createElement('strong');
+      heading.textContent = title;
+      group.append(heading);
+      for (const choice of labelSchema.choices.filter(item => item.level === level)) {
+        const chip = document.createElement('button');
+        chip.className = 'label-chip';
+        chip.type = 'button';
+        chip.draggable = true;
+        chip.textContent = choice.phase ? `${choice.label} · ${choice.phase}` : choice.label;
+        chip.title = choice.definition || choice.label;
+        chip.addEventListener('dragstart', event => {
+          event.dataTransfer.setData('application/x-exo-label', JSON.stringify({level, label: choice.label,
+            phase: choice.phase}));
+          event.dataTransfer.effectAllowed = 'copy';
+        });
+        chip.addEventListener('click', () => addChoice(choice));
+        group.append(chip);
+      }
+      if (group.children.length > 1) palette.append(group);
+    }
+  }
+
+  function newRecord(level, label, frame, phase = null) {
+    const record = {id: Math.max(0, ...annotations.map(item => item.id)) + 1, level, label, phase,
+      start_frame: frame, end_frame: frame, t_start: 0, t_end: 0, parents: [], rep: null,
+      side: null, direction: null, external_load: null, contact_points: null, target: null, note: null};
+    syncTimes(record);
+    annotations.push(record);
+    if (!(level === 'aux' && label === 'sync')) pendingId = record.id;
+    markDirty();
+    renderAnnotations();
+    endButton.disabled = pendingId === null;
+    return record;
+  }
+
+  async function addChoice(choice) {
+    if (!frames || !labelSchema?.choices.some(item => item.level === choice.level && item.label === choice.label
+        && item.phase === choice.phase)) return;
+    if (pendingId !== null) { message('Chiudi prima l’intervallo corrente con End.', 'warn'); return; }
+    if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
+    const record = newRecord(choice.level, choice.label, Number(slider.value) + 1, choice.phase);
+    message(record.id === pendingId
+      ? `${record.label}: inizio al frame ${record.start_frame}. Vai al frame finale e premi End.`
+      : `${record.label}: evento al frame ${record.start_frame}.`);
+  }
+
+  async function exactFrame() {
+    if (playing) return await seek(Math.min(frames - 1, Math.floor(videos.body.currentTime * 30)));
+    return await seekDone;
+  }
+
+  function fillSelect(select, values, current) {
+    select.replaceChildren(new Option('—', ''), ...values.map(value => new Option(value, value)));
+    select.value = current ?? '';
+  }
+
+  function openEditor(id) {
+    const record = annotations.find(item => item.id === id);
+    if (!record || id === pendingId) return;
+    editingId = id;
+    document.getElementById('editTitle').textContent = `${record.level} · ${record.label}`;
+    document.getElementById('editStart').value = record.start_frame;
+    document.getElementById('editEnd').value = record.end_frame;
+    document.getElementById('editEnd').disabled = record.level === 'aux' && record.label === 'sync';
+    document.getElementById('editStart').max = frames;
+    document.getElementById('editEnd').max = frames;
+    document.getElementById('editRep').value = record.rep ?? '';
+    document.getElementById('editTarget').value = record.target ?? '';
+    document.getElementById('editNote').value = record.note ?? '';
+    for (const [field, id] of [['side', 'editSide'], ['direction', 'editDirection'],
+                               ['external_load', 'editLoad'], ['contact_points', 'editContact']])
+      fillSelect(document.getElementById(id), labelSchema.attribute_values[field], record[field]);
+    document.querySelectorAll('.for-mid').forEach(item => item.hidden = !['mid', 'low'].includes(record.level));
+    document.querySelectorAll('.for-low').forEach(item => item.hidden = record.level !== 'low');
+    const phases = [...new Set(labelSchema.choices.filter(item => item.level === record.level
+      && item.label === record.label && item.phase).map(item => item.phase))];
+    document.querySelectorAll('.for-phase').forEach(item => item.hidden = !phases.length);
+    fillSelect(document.getElementById('editPhase'), phases, record.phase);
+    document.querySelectorAll('.for-side').forEach(item => item.hidden = !labelSchema.annotated_attributes.includes('side'));
+    document.querySelectorAll('.for-direction').forEach(item => item.hidden = !labelSchema.annotated_attributes.includes('direction'));
+    document.querySelectorAll('.for-parent').forEach(item => item.hidden = !['mid', 'low'].includes(record.level));
+    const parentLevel = record.level === 'mid' ? 'high' : 'mid';
+    const parentSelect = document.getElementById('editParents');
+    parentSelect.replaceChildren(...annotations.filter(item => item.level === parentLevel).map(item => {
+      const option = new Option(`#${item.id} ${item.label} · ${item.start_frame}–${item.end_frame}`, item.id);
+      option.selected = record.parents.includes(item.id);
+      return option;
+    }));
+    editDialog.showModal();
+  }
 
   function message(text, kind = '') {
     status.textContent = text;
@@ -307,9 +592,21 @@
 
   async function loadSequence() {
     const turn = ++loading;
+    activeSubject = subject.value;
+    activeSequence = sequence.value;
     stopPlayback();
     cancelSeek();
     frames = 0;
+    labelSchema = null;
+    annotations = [];
+    revision = null;
+    dirty = false;
+    saving = false;
+    pendingId = null;
+    endButton.disabled = true;
+    saveButton.disabled = true;
+    palette.textContent = '';
+    renderAnnotations();
     grid.classList.add('frozen');
     grid.classList.remove('seeking');
     seekState.textContent = '';
@@ -322,9 +619,9 @@
     updateReadout(0);
     message('Preparazione dei video… La prima apertura può richiedere alcuni secondi.');
     try {
-      const response = await fetch(`/api/sequence?subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      const query = `subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`;
+      const [data, schema, saved] = await Promise.all([
+        getJson(`/api/sequence?${query}`), getJson(`/api/schema?${query}`), getJson(`/api/labels?${query}`)]);
       if (turn !== loading) return;
       const metadata = cameras.map(camera => data.metadata[camera]);
       if (metadata.some(item => item.codec !== 'h264' || Math.abs(item.fps - 30) > 0.01 || item.frames < 1))
@@ -332,6 +629,11 @@
       if (cameras.some(camera => !videos[camera].requestVideoFrameCallback))
         throw new Error('Questo browser non permette di verificare il frame mostrato. Usa una versione aggiornata di Chrome, Edge o Firefox.');
       frames = Math.min(...metadata.map(item => item.frames));
+      labelSchema = schema;
+      annotations = saved.data.annotations;
+      revision = saved.revision;
+      renderPalette();
+      renderAnnotations();
       await Promise.all(cameras.map(camera => new Promise((resolve, reject) => {
         const video = videos[camera];
         video.onloadedmetadata = resolve;
@@ -357,6 +659,52 @@
     }
   }
 
+  async function saveLabels() {
+    if (!dirty || saving || pendingId !== null || !frames || !labelSchema?.task) return;
+    saving = true;
+    saveButton.disabled = true;
+    const turn = loading;
+    const version = editVersion;
+    const document = {schema_version: labelSchema.schema_version, subject: subject.value,
+      sequence: sequence.value, fps: 30, annotations};
+    try {
+      const response = await fetch(labelUrl(), {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({revision, data: document})});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      if (turn !== loading) return;
+      revision = result.revision;
+      saving = false;
+      dirty = editVersion !== version;
+      saveButton.disabled = !dirty || pendingId !== null;
+      message(dirty ? 'Salvataggio completato; ci sono nuove modifiche da salvare.'
+        : `Annotazioni salvate in ${subject.value}/label/${sequence.value}.json`);
+    } catch (error) {
+      if (turn !== loading) return;
+      saving = false;
+      message(error.message, 'error');
+      saveButton.disabled = pendingId !== null;
+    }
+  }
+
+  async function closeInterval() {
+    if (pendingId === null) return;
+    if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
+    const record = annotations.find(item => item.id === pendingId);
+    const end = Number(slider.value) + 1;
+    if (end < record.start_frame) {
+      message(`Il frame finale deve essere almeno ${record.start_frame}.`, 'error');
+      return;
+    }
+    record.end_frame = end;
+    syncTimes(record);
+    pendingId = null;
+    endButton.disabled = true;
+    markDirty();
+    renderAnnotations();
+    message(`Intervallo ${record.label}: frame ${record.start_frame}–${end}.`);
+  }
+
   function updateVisibility() {
     let count = 0;
     document.querySelectorAll('.visibility input').forEach(input => {
@@ -368,10 +716,87 @@
     grid.classList.toggle('two', count === 2);
   }
 
-  subject.addEventListener('change', () => { populate(sequence, catalog[subject.value]); loadSequence(); });
-  sequence.addEventListener('change', loadSequence);
+  function confirmSequenceChange() {
+    if (!dirty || window.confirm('Ci sono annotazioni non salvate. Vuoi cambiare sequenza e perderle?')) return true;
+    subject.value = activeSubject;
+    populate(sequence, catalog[activeSubject]);
+    sequence.value = activeSequence;
+    return false;
+  }
+
+  subject.addEventListener('change', () => {
+    if (!confirmSequenceChange()) return;
+    populate(sequence, catalog[subject.value]);
+    loadSequence();
+  });
+  sequence.addEventListener('change', () => { if (confirmSequenceChange()) loadSequence(); });
+  window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   document.getElementById('previous').addEventListener('click', () => seek(Number(slider.value) - 1));
   document.getElementById('next').addEventListener('click', () => seek(Number(slider.value) + 1));
+  endButton.addEventListener('click', closeInterval);
+  saveButton.addEventListener('click', saveLabels);
+  document.getElementById('cancelEdit').addEventListener('click', () => editDialog.close());
+  document.getElementById('deleteLabel').addEventListener('click', () => {
+    annotations = annotations.filter(item => item.id !== editingId);
+    annotations.forEach(item => { item.parents = item.parents.filter(id => id !== editingId); });
+    editingId = null;
+    editDialog.close();
+    markDirty();
+    renderAnnotations();
+  });
+  document.getElementById('editForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const record = annotations.find(item => item.id === editingId);
+    if (!record) return;
+    const start = Number(document.getElementById('editStart').value);
+    const end = record.level === 'aux' && record.label === 'sync'
+      ? start : Number(document.getElementById('editEnd').value);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end > frames || start > end) {
+      const input = document.getElementById('editEnd');
+      input.setCustomValidity('Il frame finale deve essere compreso tra quello iniziale e l’ultimo frame del video.');
+      input.reportValidity();
+      input.setCustomValidity('');
+      return;
+    }
+    record.start_frame = start;
+    record.end_frame = end;
+    record.rep = ['mid', 'low'].includes(record.level) && document.getElementById('editRep').value
+      ? Number(document.getElementById('editRep').value) : null;
+    record.side = labelSchema.annotated_attributes.includes('side')
+      ? document.getElementById('editSide').value || null : null;
+    record.direction = labelSchema.annotated_attributes.includes('direction')
+      ? document.getElementById('editDirection').value || null : null;
+    record.external_load = record.level === 'low' ? document.getElementById('editLoad').value || null : null;
+    record.contact_points = record.level === 'low' ? document.getElementById('editContact').value || null : null;
+    record.phase = document.querySelector('.for-phase').hidden ? null : document.getElementById('editPhase').value || null;
+    record.target = record.level === 'low' ? document.getElementById('editTarget').value || null : null;
+    record.note = document.getElementById('editNote').value || null;
+    record.parents = ['mid', 'low'].includes(record.level)
+      ? [...document.getElementById('editParents').selectedOptions].map(option => Number(option.value)) : [];
+    syncTimes(record);
+    editDialog.close();
+    editingId = null;
+    markDirty();
+    renderAnnotations();
+  });
+  document.querySelectorAll('.picture').forEach(picture => {
+    picture.addEventListener('dragover', event => {
+      if (!frames || !labelSchema?.task || !Array.from(event.dataTransfer.types).includes('application/x-exo-label')) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      picture.classList.add('drop-target');
+    });
+    picture.addEventListener('dragleave', () => picture.classList.remove('drop-target'));
+    picture.addEventListener('drop', async event => {
+      event.preventDefault();
+      picture.classList.remove('drop-target');
+      if (!frames || !labelSchema?.task) return;
+      let choice;
+      try { choice = JSON.parse(event.dataTransfer.getData('application/x-exo-label')); }
+      catch { return; }
+      await addChoice(choice);
+    });
+  });
   playButton.addEventListener('click', togglePlay);
   document.getElementById('help').addEventListener('click', () => {
     document.getElementById('helpDetails').textContent = frames
@@ -402,7 +827,8 @@
   });
   document.querySelectorAll('.visibility input').forEach(input => input.addEventListener('change', updateVisibility));
   document.addEventListener('keydown', event => {
-    if (helpDialog.open || event.altKey || event.ctrlKey || event.metaKey || event.target.tagName === 'SELECT') return;
+    if (helpDialog.open || editDialog.open || event.altKey || event.ctrlKey || event.metaKey
+        || event.target.closest('input:not(#slider), textarea, select, .annotation-handle')) return;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault();
       seek(Number(slider.value) + (event.key === 'ArrowRight' ? 1 : -1));

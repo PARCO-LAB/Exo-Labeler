@@ -1,6 +1,6 @@
-# EXO video viewer
+# EXO video labeler
 
-Visualizzatore locale, in sola lettura, per le triplette RGB in
+Visualizzatore e annotatore locale per le triplette RGB in
 `~/nas/MAEVE/EXO_RECORD/s*/aligned/camera_{body,env,aria}/`.
 Mostra solo le sequenze presenti in tutte e tre le camere. `camera_env` è la
 vista esterna. La camera body viene ruotata di 180° nel browser; i file non
@@ -49,6 +49,33 @@ riproduzione l'indicazione `≈ Frame` è approssimata: i tre decoder del browse
 possono presentare frame vicini in istanti diversi. La corrispondenza fra gli
 istanti reali delle camere dipende dalla sincronizzazione dei file originali.
 
+Aprire **Label** e trascinare una voce sul video (qualunque camera) al frame
+iniziale; si può anche cliccare la voce al frame corrente. Le annotazioni sono
+comuni alle tre camere. Per una label con durata,
+raggiungere il frame finale e premere **End**; `sync` è un evento puntuale e si
+chiude subito. Le azioni con fasi diverse (per esempio `move · flexion` e
+`move · extension`) sono scelte distinte. Sulla timeline ogni riga mostra label, attributi e durata in
+frame. Trascinare i bordi colorati per cambiare inizio/fine; con un bordo
+selezionato si possono usare anche le frecce per variare di un frame. Cliccare
+il testo della riga per impostare frame esatti, attributi dello schema,
+eventuali label genitore, nota, o per eliminare l'annotazione. La palette
+offre solo le label previste dal task della sequenza. `static_0` e `static_1`
+non hanno ancora un task in `label_schema.json`, quindi non offrono label.
+
+**Salva** scrive `s*/label/<nome_sequenza>.json` in modo atomico. Le label
+salvate sono caricate quando si riapre la sequenza. Se il file è stato
+modificato da un'altra sessione, il salvataggio viene respinto per evitare di
+sovrascriverlo; ricaricare la sequenza dopo aver conservato le proprie
+modifiche. Un avviso compare se si cambia sequenza o si chiude la pagina con
+modifiche non salvate. Non è possibile salvare un intervallo ancora aperto.
+
+Il JSON contiene `schema_version`, `subject`, `sequence`, `fps` e
+`annotations`. Ogni annotazione conserva i campi del template dello schema,
+più `start_frame`, `end_frame`, `direction` e `phase`. Gli indici dei frame iniziano da
+**1** e gli estremi dell'intervallo sono inclusivi. `t_start` è l'istante
+iniziale del primo frame; `t_end` è il confine subito dopo l'ultimo frame
+incluso. Per `sync`, `start_frame = end_frame` e `t_start = t_end`.
+
 Quando si seleziona una sequenza, il server crea versioni H.264 con un
 fotogramma chiave per ogni frame e le tiene in RAM. La camera Aria viene
 ridimensionata a una larghezza massima di 1280 pixel per ridurre il carico di
@@ -65,4 +92,6 @@ python -m unittest -v test_app
 ```
 
 Con Firefox e geckodriver installati, `python test_browser.py` verifica anche
-lo spostamento rapido dello slider e l'aggiornamento simultaneo dei tre frame.
+lo spostamento rapido dello slider, l'aggiornamento simultaneo dei tre frame,
+il drag and drop delle label, l'editing della timeline, il salvataggio e la
+riapertura delle annotazioni.

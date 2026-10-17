@@ -1,0 +1,1304 @@
+{
+  "schema_version": "0.1",
+  "description": "Hierarchical label schema for multimodal recordings (Vicon, Aria glasses, EMG, IMU, body-mounted camera, external camera).",
+  "conventions": {
+    "levels": {
+      "high": "Segment of one high-level action. A trial can contain one or more high-level labels.",
+      "mid": "One repetition linked to one or more high-level segments. '_cycle' / movement names = single movement from start position back to start position; '_round' = sequence through multiple targets.",
+      "low": "Atomic action linked to one or more mid-level repetitions."
+    },
+    "overlap_policy": {
+      "high": true,
+      "mid": true,
+      "low": true,
+      "description": "Labels can overlap in time at every level, both with labels of the same type and with different labels (e.g. reach and grasp overlapping during hand pre-shaping, transport and pouring when tilting starts while moving)."
+    },
+    "contiguity_policy": {
+      "required": false,
+      "description": "Child labels do not have to be contiguous or cover the full parent interval. Time not covered by any child can stay unlabelled, or be labelled with an auxiliary label if useful."
+    },
+    "parent_policy": {
+      "multiple_parents": true,
+      "description": "A child can be linked to more than one parent (e.g. an atomic action falling in two overlapping high-level segments). A child interval normally lies within its parent, but this is not enforced."
+    },
+    "atomic_sequence": "Typical order of atomic actions in a repetition. It is not a strict sequence: actions can overlap, be skipped or leave gaps between them.",
+    "high_level_pattern": {
+      "single": "One high-level label covering the whole set of repetitions.",
+      "sequential": "Several high-level labels, each covering a block of repetitions, one after the other (they may overlap at the boundaries).",
+      "alternating": "Several high-level labels alternating in time (e.g. lifting -> lowering -> lifting ...), possibly overlapping. Each high-level segment contains one mid-level repetition; 'instances' = number of segments with that label in the trial."
+    },
+    "placeholders": {
+      "side": "Resolved with the 'side' attribute annotated for the trial/repetition (left or right)."
+    },
+    "rules": [
+      "External load and contact points are annotated on each atomic action, since they change within a repetition.",
+      "The repetition index goes in the 'rep' attribute, not in the label name.",
+      "Targets (glass, drilling target, shelf, floor) go in the 'target' attribute of the atomic action."
+    ]
+  },
+  "attribute_values": {
+    "side": [
+      "left",
+      "right"
+    ],
+    "direction": [
+      "left",
+      "right"
+    ],
+    "external_load": [
+      "none",
+      "left",
+      "right",
+      "both"
+    ],
+    "contact_points": [
+      "none",
+      "left",
+      "right",
+      "both"
+    ]
+  },
+  "high_level_labels": [
+    "rom_shoulder",
+    "rom_trunk",
+    "sitting",
+    "standing",
+    "pouring",
+    "drilling",
+    "lifting",
+    "lowering",
+    "door_opening",
+    "door_closing",
+    "throwing",
+    "catching",
+    "curl"
+  ],
+  "atomic_actions": [
+    {
+      "label": "reach",
+      "definition": "Hand moves toward an object or target, without load."
+    },
+    {
+      "label": "grasp",
+      "definition": "From first contact to stable grip."
+    },
+    {
+      "label": "transport",
+      "definition": "Moving the held object."
+    },
+    {
+      "label": "pointing",
+      "definition": "Fine alignment of the tool on the target, before contact."
+    },
+    {
+      "label": "drilling",
+      "definition": "Pushing the tool against the target."
+    },
+    {
+      "label": "pouring",
+      "definition": "Tilting the bottle over the glass and back."
+    },
+    {
+      "label": "place",
+      "definition": "Object is set down."
+    },
+    {
+      "label": "release",
+      "definition": "Hand opens and detaches from the object."
+    },
+    {
+      "label": "pull",
+      "definition": "Pulling force on the door."
+    },
+    {
+      "label": "push",
+      "definition": "Pushing force on the door."
+    },
+    {
+      "label": "throw",
+      "definition": "Propulsive phase until ball release."
+    },
+    {
+      "label": "catch",
+      "definition": "From first ball contact to end of deceleration."
+    },
+    {
+      "label": "move",
+      "definition": "Free segmental movement (ROM, sit-to-stand, curl, throw wind-up)."
+    },
+    {
+      "label": "hold",
+      "definition": "Maintaining a position."
+    },
+    {
+      "label": "return",
+      "definition": "Return to start position without object."
+    }
+  ],
+  "auxiliary_labels": [
+    {
+      "label": "transition",
+      "definition": "Optional: time not belonging to the task (repositioning, adjusting objects)."
+    },
+    {
+      "label": "invalid",
+      "definition": "Segment to exclude; reason in 'note' (occlusion, marker loss, EMG artifact, off force plate, wrong execution)."
+    },
+    {
+      "label": "sync",
+      "definition": "Point event used to align sensor clocks."
+    }
+  ],
+  "annotation_record_template": {
+    "id": "int",
+    "level": "high | mid | low",
+    "label": "string",
+    "t_start": "float (s)",
+    "t_end": "float (s)",
+    "parents": "list of parent record ids (empty for high level)",
+    "rep": "int or null",
+    "side": "left | right | null",
+    "external_load": "none | left | right | both | null",
+    "contact_points": "none | left | right | both | null",
+    "target": "string or null",
+    "note": "string or null"
+  },
+  "tasks": [
+    {
+      "trial_id": "posterior_reaching",
+      "attributes": {
+        "variant": "posterior_reaching",
+        "kg": null
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "side_meaning": "upper arm",
+      "high_level": [
+        {
+          "label": "rom_shoulder",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "posterior_reach",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "reps_per": "side",
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "hold",
+                  "external_load": "none",
+                  "contact_points": "both",
+                  "note": "none if hands do not touch"
+                },
+                {
+                  "action": "return",
+                  "external_load": "none",
+                  "contact_points": "none"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "infinity_tracing",
+      "attributes": {
+        "variant": "infinity_tracing",
+        "kg": null
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "high_level": [
+        {
+          "label": "rom_shoulder",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "figure_eight",
+              "type": "cycle",
+              "reps_per_instance": 5,
+              "reps_per": "side",
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "none",
+                  "note": "one figure-eight = one action"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "lateral_reaching",
+      "attributes": {
+        "variant": "lateral_reaching",
+        "kg": null
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "high_level": [
+        {
+          "label": "rom_trunk",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "lateral_bend",
+              "type": "cycle",
+              "reps_per_instance": 5,
+              "reps_per": "side",
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "side",
+                  "note": "hand on thigh"
+                },
+                {
+                  "action": "return",
+                  "external_load": "none",
+                  "contact_points": "side",
+                  "note": "hand on thigh"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "axial_twist",
+      "attributes": {
+        "variant": "axial_twist",
+        "kg": null
+      },
+      "annotated_attributes": [
+        "direction"
+      ],
+      "high_level_pattern": "single",
+      "high_level": [
+        {
+          "label": "rom_trunk",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "trunk_twist",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "reps_per": "direction",
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "return",
+                  "external_load": "none",
+                  "contact_points": "none"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "sitting_standing",
+      "attributes": {
+        "variant": "no_hands",
+        "kg": null
+      },
+      "annotated_attributes": [],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "sitting",
+          "instances": null,
+          "instances_note": "3-5 per protocol",
+          "mid_level": [
+            {
+              "label": "sit_down",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "none",
+                  "phase": "descent"
+                },
+                {
+                  "action": "hold",
+                  "external_load": "none",
+                  "contact_points": "none",
+                  "phase": "seated"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "standing",
+          "instances": null,
+          "instances_note": "3-5 per protocol",
+          "mid_level": [
+            {
+              "label": "stand_up",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "none",
+                  "phase": "ascent"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "sitting_standing_hands",
+      "attributes": {
+        "variant": "hands",
+        "kg": null
+      },
+      "annotated_attributes": [],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "sitting",
+          "instances": null,
+          "instances_note": "3-5 per protocol",
+          "mid_level": [
+            {
+              "label": "sit_down",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "both",
+                  "phase": "descent",
+                  "note": "hands on thighs"
+                },
+                {
+                  "action": "hold",
+                  "external_load": "none",
+                  "contact_points": "both",
+                  "phase": "seated",
+                  "note": "hands on thighs"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "standing",
+          "instances": null,
+          "instances_note": "3-5 per protocol",
+          "mid_level": [
+            {
+              "label": "stand_up",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "none",
+                  "contact_points": "both",
+                  "phase": "ascent",
+                  "note": "hands on thighs"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "pouring_light",
+      "attributes": {
+        "variant": "light",
+        "kg": 0.1
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "high_level": [
+        {
+          "label": "pouring",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "pouring_round",
+              "type": "round",
+              "reps_per_instance": 3,
+              "targets_per_rep": 9,
+              "target_ids": [
+                "g1",
+                "g2",
+                "g3",
+                "g4",
+                "g5",
+                "g6",
+                "g7",
+                "g8",
+                "g9"
+              ],
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "group": [
+                    {
+                      "action": "transport",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    },
+                    {
+                      "action": "pouring",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    }
+                  ],
+                  "repeat": 9,
+                  "target_type": "glass"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "pouring_heavy",
+      "attributes": {
+        "variant": "heavy",
+        "kg": 1.5
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "high_level": [
+        {
+          "label": "pouring",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "pouring_round",
+              "type": "round",
+              "reps_per_instance": 3,
+              "targets_per_rep": 9,
+              "target_ids": [
+                "g1",
+                "g2",
+                "g3",
+                "g4",
+                "g5",
+                "g6",
+                "g7",
+                "g8",
+                "g9"
+              ],
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "group": [
+                    {
+                      "action": "transport",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    },
+                    {
+                      "action": "pouring",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    }
+                  ],
+                  "repeat": 9,
+                  "target_type": "glass"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "drilling_horizontal",
+      "attributes": {
+        "variant": "horizontal",
+        "kg": null
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "high_level": [
+        {
+          "label": "drilling",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "drilling_round",
+              "type": "round",
+              "reps_per_instance": 3,
+              "targets_per_rep": 13,
+              "target_ids": [
+                "t1",
+                "t2",
+                "t3",
+                "t4",
+                "t5",
+                "t6",
+                "t7",
+                "t8",
+                "t9",
+                "t10",
+                "t11",
+                "t12",
+                "t13"
+              ],
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "group": [
+                    {
+                      "action": "transport",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    },
+                    {
+                      "action": "pointing",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    },
+                    {
+                      "action": "drilling",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    }
+                  ],
+                  "repeat": 13,
+                  "target_type": "drilling_target"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "lifting_2hands_light",
+      "attributes": {
+        "variant": "2hands",
+        "load_class": "light",
+        "kg": null,
+        "kg_note": "empty box"
+      },
+      "annotated_attributes": [],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "lifting",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lift_to_shelf",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "both",
+                  "contact_points": "both",
+                  "target_type": "shelf"
+                },
+                {
+                  "action": "place",
+                  "external_load": "both",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "both"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "lowering",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lower_to_floor",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "both",
+                  "contact_points": "both",
+                  "target_type": "floor"
+                },
+                {
+                  "action": "place",
+                  "external_load": "both",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "both"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "lifting_2hands_heavy",
+      "attributes": {
+        "variant": "2hands",
+        "load_class": "heavy",
+        "kg": 10
+      },
+      "annotated_attributes": [],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "lifting",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lift_to_shelf",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "both",
+                  "contact_points": "both",
+                  "target_type": "shelf"
+                },
+                {
+                  "action": "place",
+                  "external_load": "both",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "both"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "lowering",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lower_to_floor",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "both",
+                  "contact_points": "both",
+                  "target_type": "floor"
+                },
+                {
+                  "action": "place",
+                  "external_load": "both",
+                  "contact_points": "both"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "both"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "lifting_1hand_light",
+      "attributes": {
+        "variant": "1hand",
+        "load_class": "light",
+        "kg": 0.1
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "lifting",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lift_to_shelf",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "side",
+                  "contact_points": "side",
+                  "target_type": "shelf"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "lowering",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lower_to_floor",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "side",
+                  "contact_points": "side",
+                  "target_type": "floor"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "lifting_1hand_heavy",
+      "attributes": {
+        "variant": "1hand",
+        "load_class": "heavy",
+        "kg": 1.5
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "lifting",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lift_to_shelf",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "side",
+                  "contact_points": "side",
+                  "target_type": "shelf"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "lowering",
+          "instances": null,
+          "instances_note": "3 rounds x number of shelves",
+          "mid_level": [
+            {
+              "label": "lower_to_floor",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "transport",
+                  "external_load": "side",
+                  "contact_points": "side",
+                  "target_type": "floor"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "drilling_vertical",
+      "attributes": {
+        "variant": "vertical",
+        "kg": null
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "high_level": [
+        {
+          "label": "drilling",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "drilling_round",
+              "type": "round",
+              "reps_per_instance": 5,
+              "targets_per_rep": null,
+              "target_ids": null,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "group": [
+                    {
+                      "action": "transport",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    },
+                    {
+                      "action": "pointing",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    },
+                    {
+                      "action": "drilling",
+                      "external_load": "side",
+                      "contact_points": "side"
+                    }
+                  ],
+                  "repeat": null,
+                  "target_type": "drilling_target",
+                  "repeat_note": "number of predefined targets on the rack"
+                },
+                {
+                  "action": "place",
+                  "external_load": "side",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "door",
+      "attributes": {
+        "kg": null
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "door_opening",
+          "instances": 5,
+          "mid_level": [
+            {
+              "label": "door_open",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "pull",
+                  "external_load": "none",
+                  "contact_points": "side",
+                  "note": "resistance only, not external load"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "return",
+                  "external_load": "none",
+                  "contact_points": "none"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "door_closing",
+          "instances": 5,
+          "mid_level": [
+            {
+              "label": "door_close",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "reach",
+                  "external_load": "none",
+                  "contact_points": "none"
+                },
+                {
+                  "action": "grasp",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "push",
+                  "external_load": "none",
+                  "contact_points": "side",
+                  "note": "resistance only, not external load"
+                },
+                {
+                  "action": "release",
+                  "external_load": "none",
+                  "contact_points": "side"
+                },
+                {
+                  "action": "return",
+                  "external_load": "none",
+                  "contact_points": "none"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "throwing",
+      "attributes": {
+        "variant": "chest_pass",
+        "kg": 9
+      },
+      "annotated_attributes": [],
+      "high_level_pattern": "alternating",
+      "high_level": [
+        {
+          "label": "throwing",
+          "instances": null,
+          "instances_note": "3-5 per protocol",
+          "mid_level": [
+            {
+              "label": "ball_throw",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "both",
+                  "contact_points": "both",
+                  "phase": "wind_up"
+                },
+                {
+                  "action": "throw",
+                  "external_load": "both",
+                  "contact_points": "both"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "catching",
+          "instances": null,
+          "instances_note": "3-5 per protocol",
+          "mid_level": [
+            {
+              "label": "ball_catch",
+              "type": "cycle",
+              "reps_per_instance": 1,
+              "atomic_sequence": [
+                {
+                  "action": "hold",
+                  "external_load": "none",
+                  "contact_points": "none",
+                  "phase": "waiting"
+                },
+                {
+                  "action": "catch",
+                  "external_load": "both",
+                  "contact_points": "both"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "trial_id": "curl",
+      "attributes": {
+        "variant": "alternating",
+        "kg": 4
+      },
+      "annotated_attributes": [
+        "side"
+      ],
+      "high_level_pattern": "single",
+      "side_meaning": "active arm",
+      "high_level": [
+        {
+          "label": "curl",
+          "instances": 1,
+          "mid_level": [
+            {
+              "label": "curl_cycle",
+              "type": "cycle",
+              "reps_per_instance": null,
+              "reps_per": "side",
+              "reps_note": "3-5 per protocol",
+              "atomic_sequence": [
+                {
+                  "action": "move",
+                  "external_load": "both",
+                  "contact_points": "both",
+                  "phase": "flexion"
+                },
+                {
+                  "action": "move",
+                  "external_load": "both",
+                  "contact_points": "both",
+                  "phase": "extension"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

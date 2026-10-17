@@ -149,7 +149,153 @@ def main():
             "return [...document.querySelectorAll('video')].map(v=>({paused:v.paused,time:v.currentTime}))", "args": []})
         assert not any(item["paused"] for item in resumed), resumed
         assert max(item["time"] for item in resumed) - min(item["time"] for item in resumed) < 0.1, resumed
-        print("Scrub e riproduzione sincronizzati nel browser: OK")
+        webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('play').click();let s=document.getElementById('slider');"
+            "s.value=9;s.dispatchEvent(new Event('input',{bubbles:true}))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if not state["busy"]:
+                break
+            time.sleep(0.1)
+        assert state["frame"] == 9 and not state["busy"], state
+        def drag_label(level, label):
+            return webdriver(endpoint + "/execute/sync", {"script":
+                "let chip=[...document.querySelectorAll('.label-chip')].find(x=>x.textContent===arguments[1]"
+                "&&x.parentElement.querySelector('strong').textContent===arguments[0]);"
+                "if(!chip) return false;let d=new DataTransfer();chip.dispatchEvent(new DragEvent('dragstart',"
+                "{dataTransfer:d,bubbles:true}));document.querySelector('.picture').dispatchEvent("
+                "new DragEvent('drop',{dataTransfer:d,bubbles:true,cancelable:true}));return true", "args": [level, label]})
+        assert drag_label("High", "curl")
+        draft = webdriver(endpoint + "/execute/sync", {"script":
+            "return {end:document.getElementById('endLabel').disabled,save:document.getElementById('saveLabels').disabled,"
+            "row:document.querySelector('.annotation-caption')?.textContent}", "args": []})
+        assert not draft["end"] and draft["save"] and "frame 10" in draft["row"], draft
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('slider');s.value=19;s.dispatchEvent(new Event('input',{bubbles:true}))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if not state["busy"]:
+                break
+            time.sleep(0.1)
+        assert state["frame"] == 19 and not state["busy"], state
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        closed = webdriver(endpoint + "/execute/sync", {"script":
+            "return {end:document.getElementById('endLabel').disabled,save:document.getElementById('saveLabels').disabled,"
+            "row:document.querySelector('.annotation-caption')?.textContent}", "args": []})
+        assert closed["end"] and not closed["save"] and "frame 10–20" in closed["row"], closed
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let h=document.querySelector('.annotation-handle.end');h.focus();"
+            "h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));"
+            "document.querySelector('.annotation-caption').click();document.getElementById('editSide').value='left';"
+            "document.querySelector('#editForm button[type=submit]').click()", "args": []})
+        edited = webdriver(endpoint + "/execute/sync", {"script":
+            "return {row:document.querySelector('.annotation-caption').textContent,dialog:document.getElementById('editDialog').open}", "args": []})
+        assert "frame 10–21" in edited["row"] and "side: left" in edited["row"] and not edited["dialog"], edited
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            if not webdriver(endpoint + "/execute/sync", {"script":
+                    "return document.getElementById('status').textContent", "args": []}).startswith("Intervallo"):
+                break
+            time.sleep(0.1)
+        saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
+        assert saved["annotations"][0]["start_frame"] == 10 and saved["annotations"][0]["end_frame"] == 21, saved
+        assert saved["annotations"][0]["t_start"] == 9 / 30 and saved["annotations"][0]["t_end"] == 21 / 30, saved
+        assert saved["annotations"][0]["side"] == "left", saved
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='curl_1';s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"] and state["status"] == "":
+                break
+            time.sleep(0.1)
+        assert not webdriver(endpoint + "/execute/sync", {"script":
+            "return document.querySelector('.annotation-caption')", "args": []})
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='curl_0';s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"] and state["status"] == "":
+                break
+            time.sleep(0.1)
+        restored = webdriver(endpoint + "/execute/sync", {"script":
+            "return document.querySelector('.annotation-caption')?.textContent", "args": []})
+        assert "frame 10–21" in restored and "side: left" in restored, restored
+        handle = webdriver(endpoint + "/execute/sync", {"script":
+            "let r=document.querySelector('.annotation-handle.end').getBoundingClientRect();"
+            "return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}", "args": []})
+        webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
+            "parameters": {"pointerType": "mouse"}, "actions": [
+                {"type": "pointerMove", "duration": 0, "x": handle["x"], "y": handle["y"]},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pointerMove", "duration": 350, "x": handle["x"] + 50, "y": handle["y"]},
+                {"type": "pointerUp", "button": 0},
+            ]}]})
+        moved = webdriver(endpoint + "/execute/sync", {"script":
+            "return document.querySelector('.annotation-caption').textContent", "args": []})
+        assert "frame 10–21" not in moved and "frame 10–" in moved, moved
+
+        def go_to(frame):
+            webdriver(endpoint + "/execute/sync", {"script":
+                "let s=document.getElementById('slider');s.value=arguments[0];"
+                "s.dispatchEvent(new Event('input',{bubbles:true}))", "args": [frame - 1]})
+            for _ in range(100):
+                current = webdriver(endpoint + "/execute/sync", read)
+                if current["frame"] == frame - 1 and not current["busy"]:
+                    return
+                time.sleep(0.1)
+            raise AssertionError(current)
+
+        go_to(30)
+        assert drag_label("Mid", "curl_cycle")
+        go_to(40)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelectorAll('.annotation-caption')[1].click();"
+            "document.getElementById('editRep').value='2';"
+            "document.getElementById('editParents').options[0].selected=true;"
+            "document.querySelector('#editForm button[type=submit]').click()", "args": []})
+        go_to(32)
+        assert drag_label("Low", "move · flexion")
+        go_to(34)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelectorAll('.annotation-caption')[2].click();"
+            "document.getElementById('editLoad').value='both';"
+            "document.getElementById('editContact').value='both';"
+            "document.getElementById('editTarget').value='hand';"
+            "document.getElementById('editParents').options[0].selected=true;"
+            "document.querySelector('#editForm button[type=submit]').click()", "args": []})
+        go_to(60)
+        assert drag_label("Aux", "sync")
+        point = webdriver(endpoint + "/execute/sync", {"script":
+            "return {rows:[...document.querySelectorAll('.annotation-caption')].map(x=>x.textContent),"
+            "end:document.getElementById('endLabel').disabled}", "args": []})
+        assert len(point["rows"]) == 4 and point["end"] and "frame 60" in point["rows"][3], point
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
+            if len(saved["annotations"]) == 4:
+                break
+            time.sleep(0.1)
+        assert len(saved["annotations"]) == 4, saved
+        assert saved["annotations"][0]["end_frame"] > 21, saved
+        assert saved["annotations"][1]["rep"] == 2 and saved["annotations"][1]["parents"] == [1], saved
+        assert saved["annotations"][2]["parents"] == [2] and saved["annotations"][2]["external_load"] == "both", saved
+        assert saved["annotations"][2]["contact_points"] == "both" and saved["annotations"][2]["target"] == "hand", saved
+        assert saved["annotations"][2]["phase"] == "flexion", saved
+        assert saved["annotations"][3]["level"] == "aux" and saved["annotations"][3]["t_start"] == saved["annotations"][3]["t_end"], saved
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='static_0';s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"]:
+                break
+            time.sleep(0.1)
+        no_labels = webdriver(endpoint + "/execute/sync", {"script":
+            "return {chips:document.querySelectorAll('.label-chip').length,"
+            "text:document.getElementById('palette').textContent}", "args": []})
+        assert no_labels["chips"] == 0 and "Nessuna label" in no_labels["text"], no_labels
+        print("Video, annotazioni e riapertura nel browser: OK")
     finally:
         if session:
             try:
