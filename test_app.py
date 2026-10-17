@@ -1,0 +1,118 @@
+import json
+import shutil
+import subprocess
+import tempfile
+import threading
+import unittest
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+from app import ViewerHandler, discover, proxy
+
+
+class ViewerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.temp.name)
+        body = cls.root / "s5/aligned/camera_body"
+        body.mkdir(parents=True)
+        sample = body / "s5_curl_0_rgb.mp4"
+        subprocess.run([
+            "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=64x48:rate=30",
+            "-frames:v", "120", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(sample),
+        ], check=True)
+        shutil.copyfile(sample, body / "s5_curl_0_depth.mp4")
+        shutil.copyfile(sample, body / "s5_curl_1_rgb.mp4")
+        for camera in ("camera_env", "camera_aria"):
+            directory = cls.root / "s5/aligned" / camera
+            directory.mkdir()
+            shutil.copyfile(sample, directory / sample.name)
+            shutil.copyfile(sample, directory / "s5_curl_1_rgb.mp4")
+        incomplete = cls.root / "s6/aligned/camera_body"
+        incomplete.mkdir(parents=True)
+        shutil.copyfile(sample, incomplete / "s6_curl_0_rgb.mp4")
+        (cls.root / "s0/aligned/curl_0").mkdir(parents=True)
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), ViewerHandler)
+        cls.server.root = cls.root
+        cls.server.recordings = discover(cls.root)
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.base = f"http://127.0.0.1:{cls.server.server_port}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.thread.join()
+        cls.temp.cleanup()
+
+    def request(self, path, headers=None, method="GET"):
+        return urlopen(Request(self.base + path, headers=headers or {}, method=method))
+
+    def test_discovery_and_metadata(self):
+        with self.request("/api/catalog") as response:
+            self.assertEqual(json.load(response), {"s5": ["curl_0", "curl_1"]})
+        with self.request("/api/sequence?subject=s5&sequence=curl_0") as response:
+            data = json.load(response)
+        self.assertEqual(set(data["videos"]), {"body", "external", "aria"})
+        self.assertEqual([data["metadata"][camera]["frames"] for camera in data["videos"]], [120] * 3)
+        self.assertEqual(data["metadata"]["body"]["fps"], 30)
+        with self.assertRaises(HTTPError) as error:
+            self.request("/api/sequence?subject=s6&sequence=curl_0")
+        self.assertEqual(error.exception.code, 404)
+
+    def test_media_ranges_and_path_validation(self):
+        path = "/media/s5/curl_0/body"
+        with self.request(path, {"Range": "bytes=0-15"}) as response:
+            self.assertEqual(response.status, 206)
+            self.assertEqual(response.headers["Content-Range"].split("/")[0], "bytes 0-15")
+            self.assertEqual(len(response.read()), 16)
+        with self.request(path, {"Range": "bytes=-8"}) as response:
+            self.assertEqual(response.status, 206)
+            self.assertEqual(len(response.read()), 8)
+        with self.request(path, method="HEAD") as response:
+            self.assertEqual(response.status, 200)
+            self.assertGreater(int(response.headers["Content-Length"]), 16)
+        with self.assertRaises(HTTPError) as error:
+            self.request(path, {"Range": "bytes=999999999-"})
+        self.assertEqual(error.exception.code, 416)
+        with self.assertRaises(HTTPError) as error:
+            self.request("/media/s5/curl_0/depth")
+        self.assertEqual(error.exception.code, 404)
+
+    def test_selected_sequence_is_served_from_memory(self):
+        path = self.server.recordings["s5"]["curl_0"]["aria"]
+        original = path.read_bytes()
+        with self.request("/api/sequence?subject=s5&sequence=curl_0") as response:
+            self.assertEqual(response.status, 200)
+        cached = proxy(path, 120)
+        self.assertNotEqual(cached, original)
+        with tempfile.TemporaryDirectory() as directory:
+            proxy_file = Path(directory) / "proxy.mp4"
+            proxy_file.write_bytes(cached)
+            result = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                                     "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", str(proxy_file)],
+                                    capture_output=True, text=True, check=True)
+            packets = [line.split(",") for line in result.stdout.splitlines()]
+            timestamps = [float(packet[0]) for packet in packets]
+            self.assertEqual(len(timestamps), 120)
+            self.assertTrue(all(abs(timestamp - index / 30) < 0.001
+                                for index, timestamp in enumerate(timestamps)))
+            self.assertTrue(all("K" in packet[1] for packet in packets))
+        try:
+            path.write_bytes(bytes(len(original)))
+            with self.request("/media/s5/curl_0/aria?proxy=1", {"Range": "bytes=10-39"}) as response:
+                self.assertEqual(response.read(), cached[10:40])
+        finally:
+            path.write_bytes(original)
+        with self.request("/api/sequence?subject=s5&sequence=curl_1") as response:
+            self.assertEqual(response.status, 200)
+        with self.request("/media/s5/curl_0/aria?proxy=1", {"Range": "bytes=10-39"}) as response:
+            self.assertEqual(response.read(), cached[10:40])
+
+
+if __name__ == "__main__":
+    unittest.main()

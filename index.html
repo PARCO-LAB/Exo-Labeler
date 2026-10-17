@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EXO · Video sincronizzati</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.45 system-ui, sans-serif; background: #11151b; color: #eef2f6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { width: min(100%, 1800px); margin: auto; padding: 12px; }
+    p { margin: 0; color: #aab5c2; }
+    .toolbar, .transport, .visibility { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+    .toolbar { margin: 0 0 10px; }
+    .field { display: grid; gap: 4px; min-width: 200px; }
+    label { font-size: .85rem; color: #b9c6d3; }
+    select, button { color: #eef2f6; background: #242d38; border: 1px solid #465463; border-radius: 7px; padding: 8px 12px; font: inherit; }
+    select { min-width: 200px; }
+    button { cursor: pointer; }
+    button:hover:enabled { background: #354354; }
+    button:disabled, select:disabled { opacity: .5; cursor: default; }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #64c7f5; outline-offset: 3px; }
+    .visibility { margin-left: auto; }
+    .visibility label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+    .visibility input { accent-color: #64c7f5; width: 17px; height: 17px; }
+    .videos { display: flex; align-items: flex-start; gap: 10px; overflow-x: auto; padding-bottom: 12px; }
+    .camera { display: flex; flex: 0 0 auto; flex-direction: column; width: calc((100% - 20px) / 3); min-width: 280px; height: clamp(340px, 52vh, 620px); min-height: 220px; border: 1px solid #303a46; border-radius: 10px; overflow: hidden; resize: both; background: #1a212a; }
+    .videos.one .camera { width: 100%; }
+    .videos.two .camera { width: calc((100% - 10px) / 2); }
+    .camera[hidden] { display: none; }
+    .camera h2 { margin: 0; padding: 7px 12px; font-size: .95rem; font-weight: 600; }
+    .picture { position: relative; flex: 1; min-height: 0; background: #050709; overflow: hidden; }
+    video, canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+    canvas { display: none; position: absolute; inset: 0; background: #050709; }
+    .videos.frozen canvas { display: block; }
+    .videos.frozen video { opacity: .01; }
+    .videos.seeking .picture::after { content: 'Aggiornamento frame…'; position: absolute; inset: 0; display: grid; place-items: center; background: #050709; color: #aab5c2; }
+    #bodyVideo, #bodyCanvas { transform: rotate(180deg); }
+    .timeline { position: sticky; bottom: 0; z-index: 2; margin-top: 10px; padding: 12px; border: 1px solid #303a46; border-radius: 8px; background: #1a212a; box-shadow: 0 -5px 20px #080b10a8; }
+    .transport { margin-bottom: 6px; }
+    .nav-icon { display: inline-block; font-size: .65rem; vertical-align: 1px; }
+    .readout { margin-left: auto; font-variant-numeric: tabular-nums; color: #c7d7e5; }
+    .scrub { position: relative; padding: 0 9px; background: #10151b; border: 1px solid #354250; border-radius: 4px; }
+    #ruler { position: relative; height: 25px; color: #aab5c2; font-size: .7rem; font-variant-numeric: tabular-nums; }
+    .tick { position: absolute; bottom: 0; height: 8px; border-left: 1px solid #7b8b9b; }
+    .tick span { position: absolute; bottom: 8px; left: 3px; white-space: nowrap; }
+    #slider { appearance: none; display: block; width: 100%; height: 34px; margin: 0; background: linear-gradient(to right, #3b7da5 var(--progress, 0%), #303a46 var(--progress, 0%)); cursor: pointer; }
+    #slider::-webkit-slider-thumb { appearance: none; width: 18px; height: 46px; background: #60c5f4; border: 0; clip-path: polygon(0 0, 100% 0, 100% 12px, 55% 18px, 55% 100%, 45% 100%, 45% 18px, 0 12px); }
+    #slider::-moz-range-thumb { width: 18px; height: 46px; background: #60c5f4; border: 0; border-radius: 0; clip-path: polygon(0 0, 100% 0, 100% 12px, 55% 18px, 55% 100%, 45% 100%, 45% 18px, 0 12px); }
+    #slider:disabled { cursor: default; }
+    #status:not(:empty) { margin-top: 7px; }
+    #status.warn { color: #f6c975; }
+    #status.error { color: #ff9a9a; }
+    #seekState { color: #f6c975; font-size: .85rem; }
+    dialog { color: #eef2f6; background: #242d38; border: 1px solid #465463; border-radius: 8px; max-width: min(90vw, 440px); }
+    dialog::backdrop { background: #0009; }
+    dialog p { margin-bottom: 12px; }
+    @media (max-width: 700px) { .visibility { margin-left: 0; width: 100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="toolbar">
+    <div class="field"><label for="subject">Soggetto</label><select id="subject" disabled></select></div>
+    <div class="field"><label for="sequence">Sequenza</label><select id="sequence" disabled></select></div>
+    <div class="visibility" aria-label="Camere visibili">
+      <label><input type="checkbox" data-camera="body" checked> Body</label>
+      <label><input type="checkbox" data-camera="external" checked> Esterna</label>
+      <label><input type="checkbox" data-camera="aria" checked> Aria</label>
+    </div>
+  </div>
+
+  <div id="videos" class="videos">
+    <section class="camera" data-camera="body"><h2>Body · RGB · ruotata 180°</h2><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas></div></section>
+    <section class="camera" data-camera="external"><h2>Esterna</h2><div class="picture"><video id="externalVideo" muted playsinline preload="metadata"></video><canvas id="externalCanvas" aria-hidden="true"></canvas></div></section>
+    <section class="camera" data-camera="aria"><h2>Aria</h2><div class="picture"><video id="ariaVideo" muted playsinline preload="metadata"></video><canvas id="ariaCanvas" aria-hidden="true"></canvas></div></section>
+  </div>
+
+  <div class="timeline">
+    <div class="transport">
+      <button id="previous" type="button" disabled aria-label="Frame precedente"><span class="nav-icon" aria-hidden="true">◀</span> Frame</button>
+      <button id="play" type="button" disabled><span class="nav-icon" aria-hidden="true">▶</span> <span class="button-label">Riproduci</span></button>
+      <button id="next" type="button" disabled aria-label="Frame successivo">Frame <span class="nav-icon" aria-hidden="true">▶</span></button>
+      <button id="help" type="button" aria-label="Aiuto">?</button>
+      <span id="readout" class="readout">Frame —</span>
+    </div>
+    <div class="scrub"><div id="ruler" aria-hidden="true"></div><input id="slider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Posizione in frame"></div>
+    <span id="seekState" role="status" aria-live="polite"></span>
+    <p id="status" role="status" aria-live="polite">Caricamento catalogo…</p>
+  </div>
+</main>
+<dialog id="helpDialog" aria-label="Aiuto"><p id="helpDetails"></p><p>Frecce ← →: un frame · Barra spaziatrice: riproduci o pausa</p><p>Trascina l'angolo in basso a destra di una finestra per ridimensionarla.</p><button id="closeHelp" type="button">Chiudi</button></dialog>
+<script>
+  const cameras = ['body', 'external', 'aria'];
+  const videos = Object.fromEntries(cameras.map(camera => [camera, document.getElementById(camera + 'Video')]));
+  const canvases = Object.fromEntries(cameras.map(camera => [camera, document.getElementById(camera + 'Canvas')]));
+  const grid = document.getElementById('videos');
+  const subject = document.getElementById('subject');
+  const sequence = document.getElementById('sequence');
+  const slider = document.getElementById('slider');
+  const ruler = document.getElementById('ruler');
+  const seekState = document.getElementById('seekState');
+  const status = document.getElementById('status');
+  const readout = document.getElementById('readout');
+  const playButton = document.getElementById('play');
+  const helpDialog = document.getElementById('helpDialog');
+  const controls = [slider, playButton, document.getElementById('previous'), document.getElementById('next')];
+  let catalog = {};
+  let frames = 0;
+  let playing = false;
+  let loading = 0;
+  let playVersion = 0;
+  let pendingFrame = 0;
+  let seekScheduled = 0;
+  let seekTimeout = 0;
+  let finishSeek = null;
+  let seekDone = Promise.resolve(true);
+  const displayed = Object.fromEntries(cameras.map(camera => [camera, null]));
+  const held = new Set();
+
+  function message(text, kind = '') {
+    status.textContent = text;
+    status.className = kind;
+  }
+
+  function updateReadout(frame) {
+    readout.textContent = frames ? `${playing ? '≈ ' : ''}Frame ${frame + 1} / ${frames}` : 'Frame —';
+    slider.setAttribute('aria-valuetext', frames ? `${playing ? 'Circa frame' : 'Frame'} ${frame + 1} di ${frames}` : 'Nessun frame');
+    slider.style.setProperty('--progress', `${frames > 1 ? frame / (frames - 1) * 100 : 0}%`);
+  }
+
+  function updateRuler() {
+    ruler.replaceChildren();
+    const rough = Math.max(1, (frames - 1) / 6);
+    const magnitude = 10 ** Math.floor(Math.log10(rough));
+    const step = [1, 2, 5, 10].map(value => value * magnitude).find(value => value >= rough);
+    for (let frame = 0; frame < frames; frame += step) {
+      const tick = document.createElement('div');
+      tick.className = 'tick';
+      tick.style.left = `${frames > 1 ? frame / (frames - 1) * 100 : 0}%`;
+      const label = document.createElement('span');
+      label.textContent = frame + 1;
+      tick.append(label);
+      ruler.append(tick);
+    }
+  }
+
+  function stopPlayback() {
+    playVersion++;
+    playing = false;
+    held.clear();
+    cameras.forEach(camera => {
+      videos[camera].pause();
+      videos[camera].playbackRate = 1;
+    });
+    playButton.querySelector('.nav-icon').textContent = '▶';
+    playButton.querySelector('.button-label').textContent = 'Riproduci';
+  }
+
+  function cancelSeek() {
+    if (seekScheduled) cancelAnimationFrame(seekScheduled);
+    clearTimeout(seekTimeout);
+    seekScheduled = 0;
+    if (finishSeek) finishSeek(false);
+    finishSeek = null;
+    seekDone = Promise.resolve(false);
+  }
+
+  function maybeCommit() {
+    if (!finishSeek || seekScheduled || !frames || playing) return;
+    const instant = pendingFrame / 30 + 0.001;
+    if (!cameras.every(camera => {
+      const video = videos[camera];
+      return !video.seeking && video.readyState >= 2 && Math.abs(video.currentTime - instant) < 0.001
+        && displayed[camera] !== null && Math.round(displayed[camera] * 30) === pendingFrame;
+    })) return;
+    // A single browser paint shows the three decoded frames together.
+    cameras.forEach(camera => {
+      const video = videos[camera];
+      const canvas = canvases[camera];
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+    });
+    seekState.textContent = '';
+    clearTimeout(seekTimeout);
+    grid.classList.remove('seeking');
+    const resolve = finishSeek;
+    finishSeek = null;
+    resolve(true);
+  }
+
+  function seek(frame) {
+    if (!frames) return Promise.resolve(false);
+    stopPlayback();
+    if (status.textContent.startsWith('Il browser non ha confermato')) message('');
+    frame = Math.max(0, Math.min(frames - 1, Number(frame)));
+    pendingFrame = frame;
+    cameras.forEach(camera => {
+      if (displayed[camera] === null || Math.round(displayed[camera] * 30) !== frame)
+        displayed[camera] = null;
+    });
+    slider.value = frame;
+    updateReadout(frame);
+    if (!grid.classList.contains('frozen')) cameras.forEach(camera => {
+      const canvas = canvases[camera];
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    });
+    grid.classList.add('frozen', 'seeking');
+    seekState.textContent = 'Aggiornamento dei tre frame…';
+    cancelSeek();
+    seekDone = new Promise(resolve => { finishSeek = resolve; });
+    seekTimeout = setTimeout(() => {
+      if (!finishSeek) return;
+      cancelSeek();
+      seekState.textContent = 'Frame non verificato';
+      message('Il browser non ha confermato lo stesso frame sulle tre camere. Riprova a spostare la testina.', 'error');
+    }, 10000);
+    seekScheduled = requestAnimationFrame(() => {
+      seekScheduled = 0;
+      const instant = pendingFrame / 30 + 0.001;
+      cameras.forEach(camera => {
+        const video = videos[camera];
+        if (Math.abs(video.currentTime - instant) >= 0.001 || video.readyState < 2
+            || displayed[camera] === null)
+          video.currentTime = instant;
+      });
+      maybeCommit();
+    });
+    return seekDone;
+  }
+
+  async function togglePlay() {
+    if (!frames) return;
+    if (playing) { seek(Math.floor(videos.body.currentTime * 30)); return; }
+    if (Number(slider.value) >= frames - 1) seek(0);
+    const request = ++playVersion;
+    const ready = await seekDone;
+    if (!ready || request !== playVersion || !frames) return;
+    playing = true;
+    playButton.querySelector('.nav-icon').textContent = '⏸';
+    playButton.querySelector('.button-label').textContent = 'Pausa';
+    seekState.textContent = 'Preparazione delle tre camere…';
+    try {
+      await Promise.all(cameras.map(async camera => {
+        const video = videos[camera];
+        const start = video.currentTime;
+        await video.play();
+        await new Promise((resolve, reject) => {
+          const deadline = performance.now() + 10000;
+          function waitForFrame() {
+            if (request !== playVersion) resolve();
+            else if (video.currentTime >= start + 1 / 30) { video.pause(); resolve(); }
+            else if (performance.now() > deadline) reject(new Error(`La camera ${camera} non avanza.`));
+            else requestAnimationFrame(waitForFrame);
+          }
+          waitForFrame();
+        });
+      }));
+      if (request !== playVersion) return;
+      await Promise.all(cameras.map(camera => videos[camera].play()));
+      if (request !== playVersion) return;
+      seekState.textContent = '';
+      grid.classList.remove('frozen');
+      requestAnimationFrame(tick);
+    } catch (error) {
+      if (request !== playVersion) return;
+      stopPlayback();
+      seekState.textContent = '';
+      message(`Riproduzione non riuscita: ${error.message}`, 'error');
+    }
+  }
+
+  function tick() {
+    if (!playing) return;
+    const master = videos.body.currentTime;
+    if (master >= (frames - 0.5) / 30) { seek(frames - 1); return; }
+    const shown = Object.fromEntries(cameras.map(camera =>
+      [camera, displayed[camera] ?? videos[camera].currentTime]));
+    const slowest = Math.min(...Object.values(shown));
+    for (const camera of cameras) {
+      const video = videos[camera];
+      const ahead = shown[camera] - slowest;
+      if (ahead > 2 / 30 && !video.paused) { video.pause(); held.add(camera); }
+      else if (held.has(camera) && ahead < 1 / 30) {
+        held.delete(camera);
+        video.play().catch(error => {
+          if (playing) { stopPlayback(); message(`Riproduzione non riuscita: ${error.message}`, 'error'); }
+        });
+      }
+    }
+    for (const camera of cameras.slice(1)) {
+      const video = videos[camera];
+      const rate = Math.max(0.95, Math.min(1.05, 1 + (shown.body - shown[camera]) * 2));
+      if (Math.abs(video.playbackRate - rate) > 0.005) video.playbackRate = rate;
+    }
+    const frame = Math.min(frames - 1, Math.floor(master * 30));
+    slider.value = frame;
+    updateReadout(frame);
+    requestAnimationFrame(tick);
+  }
+
+  function populate(select, values) {
+    select.replaceChildren(...values.map(value => new Option(value, value)));
+    select.disabled = !values.length;
+  }
+
+  async function loadSequence() {
+    const turn = ++loading;
+    stopPlayback();
+    cancelSeek();
+    frames = 0;
+    grid.classList.add('frozen');
+    grid.classList.remove('seeking');
+    seekState.textContent = '';
+    cameras.forEach(camera => {
+      displayed[camera] = null;
+      const canvas = canvases[camera];
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    });
+    controls.forEach(control => control.disabled = true);
+    updateReadout(0);
+    message('Preparazione dei video… La prima apertura può richiedere alcuni secondi.');
+    try {
+      const response = await fetch(`/api/sequence?subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      if (turn !== loading) return;
+      const metadata = cameras.map(camera => data.metadata[camera]);
+      if (metadata.some(item => item.codec !== 'h264' || Math.abs(item.fps - 30) > 0.01 || item.frames < 1))
+        throw new Error('Questa sequenza non contiene tre video H.264 a 30 fps con conteggio frame valido.');
+      if (cameras.some(camera => !videos[camera].requestVideoFrameCallback))
+        throw new Error('Questo browser non permette di verificare il frame mostrato. Usa una versione aggiornata di Chrome, Edge o Firefox.');
+      frames = Math.min(...metadata.map(item => item.frames));
+      await Promise.all(cameras.map(camera => new Promise((resolve, reject) => {
+        const video = videos[camera];
+        video.onloadedmetadata = resolve;
+        video.onerror = () => reject(new Error(`Il browser non riesce a caricare la camera ${camera}.`));
+        video.src = data.videos[camera];
+        video.load();
+      })));
+      if (turn !== loading) return;
+      slider.max = frames - 1;
+      updateRuler();
+      controls.forEach(control => control.disabled = false);
+      seek(0);
+      const counts = metadata.map(item => item.frames);
+      message(new Set(counts).size > 1
+        ? `Lunghezze diverse: body ${counts[0]}, esterna ${counts[1]}, Aria ${counts[2]} frame. La timeline si ferma al più corto.`
+        : '', new Set(counts).size > 1 ? 'warn' : '');
+    } catch (error) {
+      if (turn === loading) {
+        frames = 0;
+        controls.forEach(control => control.disabled = true);
+        message(error.message, 'error');
+      }
+    }
+  }
+
+  function updateVisibility() {
+    let count = 0;
+    document.querySelectorAll('.visibility input').forEach(input => {
+      const visible = input.checked;
+      document.querySelector(`.camera[data-camera="${input.dataset.camera}"]`).hidden = !visible;
+      if (visible) count++;
+    });
+    grid.classList.toggle('one', count === 1);
+    grid.classList.toggle('two', count === 2);
+  }
+
+  subject.addEventListener('change', () => { populate(sequence, catalog[subject.value]); loadSequence(); });
+  sequence.addEventListener('change', loadSequence);
+  document.getElementById('previous').addEventListener('click', () => seek(Number(slider.value) - 1));
+  document.getElementById('next').addEventListener('click', () => seek(Number(slider.value) + 1));
+  playButton.addEventListener('click', togglePlay);
+  document.getElementById('help').addEventListener('click', () => {
+    document.getElementById('helpDetails').textContent = frames
+      ? `${frames} frame a 30 fps · tre camere pronte.` : 'Seleziona una sequenza per caricare le tre camere.';
+    helpDialog.showModal();
+  });
+  document.getElementById('closeHelp').addEventListener('click', () => helpDialog.close());
+  slider.addEventListener('input', () => seek(slider.value));
+  cameras.forEach(camera => {
+    const video = videos[camera];
+    if (video.requestVideoFrameCallback) {
+      function trackFrame(_, metadata) {
+        displayed[camera] = metadata.mediaTime;
+        maybeCommit();
+        video.requestVideoFrameCallback(trackFrame);
+      }
+      video.requestVideoFrameCallback(trackFrame);
+    }
+    videos[camera].addEventListener('seeked', maybeCommit);
+    videos[camera].addEventListener('loadeddata', maybeCommit);
+    videos[camera].addEventListener('error', () => {
+      if (!frames) return;
+      stopPlayback();
+      cancelSeek();
+      seekState.textContent = '';
+      message(`Errore nel video ${camera}. Ricarica la sequenza.`, 'error');
+    });
+  });
+  document.querySelectorAll('.visibility input').forEach(input => input.addEventListener('change', updateVisibility));
+  document.addEventListener('keydown', event => {
+    if (helpDialog.open || event.altKey || event.ctrlKey || event.metaKey || event.target.tagName === 'SELECT') return;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      seek(Number(slider.value) + (event.key === 'ArrowRight' ? 1 : -1));
+    } else if (event.code === 'Space' && event.target.tagName !== 'BUTTON' && event.target.tagName !== 'INPUT') {
+      event.preventDefault();
+      togglePlay();
+    }
+  });
+
+  fetch('/api/catalog').then(response => response.json()).then(data => {
+    catalog = data;
+    populate(subject, Object.keys(catalog));
+    if (!subject.value) { message('Nessuna sequenza RGB completa trovata. Verifica la cartella dei dati.', 'warn'); return; }
+    populate(sequence, catalog[subject.value]);
+    loadSequence();
+  }).catch(error => message(`Catalogo non disponibile: ${error.message}`, 'error'));
+</script>
+</body>
+</html>
