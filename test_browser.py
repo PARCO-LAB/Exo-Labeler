@@ -62,6 +62,25 @@ def main():
                 break
             time.sleep(0.1)
         assert state["ready"] and not state["busy"], state
+        chrome = webdriver(endpoint + "/execute/sync", {"script":
+            "let panel=document.getElementById('selectionPanel'),"
+            "ruler=document.querySelector('.ruler-surface'),"
+            "track=document.getElementById('annotationRows'),"
+            "button=document.getElementById('previous'),"
+            "camera=document.querySelector('.visibility input');"
+            "let initial={closed:!panel.open,summary:document.getElementById('selectionSummary').textContent,"
+            "rulerHeight:ruler.getBoundingClientRect().height,rulerColor:getComputedStyle(ruler).backgroundColor,"
+            "trackColor:getComputedStyle(track).backgroundColor,buttonHeight:button.getBoundingClientRect().height,"
+            "cameraVisible:camera.getBoundingClientRect().width>0,"
+            "compactAbsent:!document.getElementById('compactTransport')};"
+            "document.getElementById('selectionSummary').click();initial.opened=panel.open;"
+            "initial.selectVisible=document.getElementById('subject').getBoundingClientRect().width>0;"
+            "document.getElementById('selectionSummary').click();return initial", "args": []})
+        assert chrome["closed"] and chrome["opened"] and chrome["selectVisible"] and chrome["cameraVisible"], chrome
+        assert "s5" in chrome["summary"] and "curl_0" in chrome["summary"], chrome
+        assert chrome["rulerHeight"] == 22 and chrome["rulerColor"] == "rgb(232, 236, 239)", chrome
+        assert chrome["trackColor"] == chrome["rulerColor"], chrome
+        assert chrome["compactAbsent"] and chrome["buttonHeight"] <= 28, chrome
         initial = state["hashes"][0]
         webdriver(endpoint + "/execute/sync", {"script":
             "let s=document.getElementById('slider');for(const n of [2,7,4,8])"
@@ -78,6 +97,30 @@ def main():
         assert state["resize"] == "both" and len(state["navIconSizes"]) == 3 and max(state["navIconSizes"]) < 16, state
         assert state["readout"] == "Frame 9 / 120" and state["rulerLabels"] == ["1", "21", "41", "61", "81", "101"], state
         assert state["status"] == "", state
+        timeline = webdriver(endpoint + "/execute/sync", {"script":
+            "let r=document.getElementById('ruler').getBoundingClientRect(),"
+            "l=document.getElementById('playheadLine').getBoundingClientRect(),"
+            "h=document.getElementById('playheadHead').getBoundingClientRect();"
+            "return {ruler:{x:r.x,y:r.y,width:r.width},line:{x:l.x,width:l.width},"
+            "head:h.x+h.width/2,offset:parseFloat(getComputedStyle(document.getElementById('playheadLine'),'::before').left)}",
+            "args": []})
+        assert abs(timeline["ruler"]["x"] - timeline["line"]["x"]) < 1, timeline
+        assert abs(timeline["ruler"]["width"] - timeline["line"]["width"]) < 1, timeline
+        assert abs(timeline["head"] - (timeline["line"]["x"] + timeline["offset"])) < 1, timeline
+        x = round(timeline["ruler"]["x"] + timeline["ruler"]["width"] * .65)
+        y = round(timeline["ruler"]["y"] + 11)
+        webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
+            "parameters": {"pointerType": "mouse"}, "actions": [
+                {"type": "pointerMove", "duration": 0, "x": x, "y": y},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pointerUp", "button": 0},
+            ]}]})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if not state["busy"] and 75 <= state["frame"] <= 80:
+                break
+            time.sleep(0.1)
+        assert not state["busy"] and 75 <= state["frame"] <= 80, state
         before = webdriver(endpoint + "/execute/sync", {"script":
             "let r=document.querySelector('.camera').getBoundingClientRect();"
             "return {x:r.x,y:r.y,width:r.width,height:r.height}", "args": []})
@@ -170,6 +213,21 @@ def main():
             "return {end:document.getElementById('endLabel').disabled,save:document.getElementById('saveLabels').disabled,"
             "row:document.querySelector('.annotation-caption')?.textContent}", "args": []})
         assert not draft["end"] and draft["save"] and "frame 10" in draft["row"], draft
+        track = webdriver(endpoint + "/execute/sync", {"script":
+            "let r=document.querySelector('.annotation-track').getBoundingClientRect();"
+            "return {x:Math.round(r.x+r.width*.75),y:Math.round(r.y+r.height/2)}", "args": []})
+        webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
+            "parameters": {"pointerType": "mouse"}, "actions": [
+                {"type": "pointerMove", "duration": 0, "x": track["x"], "y": track["y"]},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pointerUp", "button": 0},
+            ]}]})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if not state["busy"] and 87 <= state["frame"] <= 92:
+                break
+            time.sleep(0.1)
+        assert not state["busy"] and 87 <= state["frame"] <= 92, state
         webdriver(endpoint + "/execute/sync", {"script":
             "let s=document.getElementById('slider');s.value=19;s.dispatchEvent(new Event('input',{bubbles:true}))", "args": []})
         for _ in range(100):
@@ -284,6 +342,63 @@ def main():
         assert saved["annotations"][2]["contact_points"] == "both" and saved["annotations"][2]["target"] == "hand", saved
         assert saved["annotations"][2]["phase"] == "flexion", saved
         assert saved["annotations"][3]["level"] == "aux" and saved["annotations"][3]["t_start"] == saved["annotations"][3]["t_end"], saved
+        go_to(12)
+        assert drag_label("High", "curl")
+        go_to(18)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        go_to(32)
+        assert drag_label("Low", "move · extension")
+        go_to(35)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        grouped = webdriver(endpoint + "/execute/sync", {"script":
+            "let rows=[...document.querySelectorAll('.annotation-row')];"
+            "let lane=(row)=>[...row.querySelectorAll('.annotation-bar')].map(x=>x.getBoundingClientRect().y);"
+            "let ruler=document.getElementById('ruler').getBoundingClientRect();"
+            "return {rows:rows.length,names:rows.map(x=>x.querySelector('.track-name').textContent),"
+            "counts:rows.map(x=>x.querySelectorAll('.annotation-bar').length),"
+            "highY:lane(rows[0]),lowY:lane(rows[2]),"
+            "tracksX:rows.map(x=>x.querySelector('.annotation-track').getBoundingClientRect().x),"
+            "rulerX:ruler.x,inside:document.getElementById('scrub').contains(document.getElementById('annotationRows')),"
+            "tickX:[...document.querySelectorAll('#ruler .tick')].map(x=>x.getBoundingClientRect().x),"
+            "lines:[...document.querySelectorAll('#gridLines .grid-line')].map(x=>{let r=x.getBoundingClientRect();return {x:r.x,y:r.y,height:r.height}}),"
+            "trackTop:document.getElementById('annotationRows').getBoundingClientRect().y,"
+            "trackHeight:document.getElementById('annotationRows').getBoundingClientRect().height}",
+            "args": []})
+        assert grouped["inside"] and grouped["rows"] == 4, grouped
+        assert grouped["names"] == ["high · curl", "mid · curl_cycle", "low · move", "aux · sync"], grouped
+        assert grouped["counts"] == [2, 1, 2, 1], grouped
+        assert len(set(grouped["highY"])) == 2 and len(set(grouped["lowY"])) == 2, grouped
+        assert all(abs(x - grouped["rulerX"]) < 1 for x in grouped["tracksX"]), grouped
+        assert len(grouped["tickX"]) == len(grouped["lines"]) > 0, grouped
+        assert all(abs(tick - line["x"]) < 1 and abs(line["y"] - grouped["trackTop"]) < 1
+                   and abs(line["height"] - grouped["trackHeight"]) < 1
+                   for tick, line in zip(grouped["tickX"], grouped["lines"])), grouped
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
+            if len(saved["annotations"]) == 6:
+                break
+            time.sleep(0.1)
+        assert len(saved["annotations"]) == 6, saved
+        go_to(119)
+        assert drag_label("Aux", "sync")
+        go_to(120)
+        assert drag_label("Aux", "sync")
+        edge = webdriver(endpoint + "/execute/sync", {"script":
+            "let row=[...document.querySelectorAll('.annotation-row')].find(x=>x.querySelector('.track-name').textContent==='aux · sync');"
+            "let right=row.querySelector('.annotation-track').getBoundingClientRect().right;"
+            "let bars=[...row.querySelectorAll('.annotation-bar')].map(x=>x.getBoundingClientRect());"
+            "return {rows:document.querySelectorAll('.annotation-row').length,count:bars.length,"
+            "lastRight:bars.at(-1).right,trackRight:right,lateY:bars.slice(-2).map(x=>x.y)}", "args": []})
+        assert edge["rows"] == 4 and edge["count"] == 3, edge
+        assert edge["lastRight"] <= edge["trackRight"] + 1 and len(set(edge["lateY"])) == 2, edge
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
+            if len(saved["annotations"]) == 8:
+                break
+            time.sleep(0.1)
+        assert len(saved["annotations"]) == 8, saved
         webdriver(endpoint + "/execute/sync", {"script":
             "let s=document.getElementById('sequence');s.value='static_0';s.dispatchEvent(new Event('change'))", "args": []})
         for _ in range(100):

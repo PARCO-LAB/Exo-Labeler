@@ -34,7 +34,11 @@ vengono aggiunte nuove registrazioni.
 La timeline usa i frame a 30 Hz. Alla selezione l'app controlla codec,
 frequenza e numero di frame; se i video hanno lunghezze diverse, segnala la
 differenza e limita la timeline al più corto. Righello e lettura dello slider
-mostrano numeri di frame. Ogni finestra si ridimensiona trascinando l'angolo
+mostrano numeri di frame. Il pannello **Soggetto e sequenza** si apre e chiude
+dal titolo; i comandi delle camere restano visibili. La riga di navigazione è
+compatta. Righello e tracce delle label condividono lo sfondo grigio chiaro,
+con le linee dei frame estese lungo tutte le tracce. Ogni finestra si
+ridimensiona trascinando l'angolo
 in basso a destra; quando non entrano tutte nella pagina, si scorre
 orizzontalmente. Durante la riproduzione il browser
 prepara un frame per ciascuna camera prima di mostrare il video, poi mantiene
@@ -54,8 +58,13 @@ iniziale; si può anche cliccare la voce al frame corrente. Le annotazioni sono
 comuni alle tre camere. Per una label con durata,
 raggiungere il frame finale e premere **End**; `sync` è un evento puntuale e si
 chiude subito. Le azioni con fasi diverse (per esempio `move · flexion` e
-`move · extension`) sono scelte distinte. Sulla timeline ogni riga mostra label, attributi e durata in
-frame. Trascinare i bordi colorati per cambiare inizio/fine; con un bordo
+`move · extension`) sono scelte distinte. La timeline ha righello in frame e
+testina verticale; sotto il righello, ogni livello e nome di label ha una
+traccia. I segmenti della stessa label condividono la traccia, anche se hanno
+fasi diverse; quando si sovrappongono usano corsie nella stessa traccia.
+Ogni segmento mostra label, attributi e durata in frame, con i dettagli
+completi al passaggio del mouse. Trascinare i bordi colorati per cambiare
+inizio/fine; con un bordo
 selezionato si possono usare anche le frecce per variare di un frame. Cliccare
 il testo della riga per impostare frame esatti, attributi dello schema,
 eventuali label genitore, nota, o per eliminare l'annotazione. La palette
