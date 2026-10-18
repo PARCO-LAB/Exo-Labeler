@@ -38,8 +38,8 @@ mostrano numeri di frame. Il pannello **Soggetto e sequenza** si apre e chiude
 dal titolo; i comandi delle camere restano visibili. La riga di navigazione è
 compatta. Righello e tracce delle label condividono lo sfondo grigio chiaro,
 con le linee dei frame estese lungo tutte le tracce. Ogni finestra si
-ridimensiona trascinando l'angolo
-in basso a destra; quando non entrano tutte nella pagina, si scorre
+ridimensiona trascinando l'angolo in basso a destra; **↺ Dimensioni** ripristina
+le dimensioni iniziali di tutte le inquadrature. Quando non entrano tutte nella pagina, si scorre
 orizzontalmente. Durante la riproduzione il browser
 prepara un frame per ciascuna camera prima di mostrare il video, poi mantiene
 i canali vicini al tempo della camera body regolando leggermente la velocità,
@@ -53,21 +53,23 @@ riproduzione l'indicazione `≈ Frame` è approssimata: i tre decoder del browse
 possono presentare frame vicini in istanti diversi. La corrispondenza fra gli
 istanti reali delle camere dipende dalla sincronizzazione dei file originali.
 
-Aprire **Label** e trascinare una voce sul video (qualunque camera) al frame
-iniziale; si può anche cliccare la voce al frame corrente. Le annotazioni sono
-comuni alle tre camere. Per una label con durata,
+Aprire **Label** e cliccare una voce per iniziare l'annotazione al frame
+visualizzato. Le annotazioni sono comuni alle tre camere. Per una label con durata,
 raggiungere il frame finale e premere **End**; `sync` è un evento puntuale e si
 chiude subito. Le azioni con fasi diverse (per esempio `move · flexion` e
 `move · extension`) sono scelte distinte. La timeline ha righello in frame e
 testina verticale; sotto il righello, ogni livello e nome di label ha una
-traccia. I segmenti della stessa label condividono la traccia, anche se hanno
+traccia. Il righello mostra un segno ogni 10 frame e il numero ogni 50;
+le linee corrispondenti attraversano tutte le tracce. I segmenti della stessa label condividono la traccia, anche se hanno
 fasi diverse; quando si sovrappongono usano corsie nella stessa traccia.
 Ogni segmento mostra label, attributi e durata in frame, con i dettagli
 completi al passaggio del mouse. Trascinare i bordi colorati per cambiare
-inizio/fine; con un bordo
+inizio/fine: la testina segue il bordo e i video mostrano il frame selezionato. Con un bordo
 selezionato si possono usare anche le frecce per variare di un frame. Cliccare
-il testo della riga per impostare frame esatti, attributi dello schema,
-eventuali label genitore, nota, o per eliminare l'annotazione. La palette
+il nome della label nella colonna **FRAME** o il suo segmento per impostare
+frame esatti, attributi dello schema,
+eventuali label genitore, nota, o per eliminare l'annotazione. Se sulla stessa
+riga ci sono più annotazioni, il clic sul nome apre una scelta per frame. La palette
 offre solo le label previste dal task della sequenza. `static_0` e `static_1`
 non hanno ancora un task in `label_schema.json`, quindi non offrono label.
 
@@ -102,5 +104,5 @@ python -m unittest -v test_app
 
 Con Firefox e geckodriver installati, `python test_browser.py` verifica anche
 lo spostamento rapido dello slider, l'aggiornamento simultaneo dei tre frame,
-il drag and drop delle label, l'editing della timeline, il salvataggio e la
+la scelta delle label al frame corrente, l'editing della timeline, il salvataggio e la
 riapertura delle annotazioni.

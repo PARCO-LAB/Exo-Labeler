@@ -26,27 +26,26 @@
     .visibility { margin-left: auto; padding: 10px 0; }
     .visibility label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
     .visibility input { accent-color: #64c7f5; width: 17px; height: 17px; }
+    .visibility button { padding: 3px 7px; font-size: .75rem; }
     .videos { display: flex; align-items: flex-start; gap: 10px; overflow-x: auto; padding-bottom: 12px; }
     .camera { display: flex; flex: 0 0 auto; flex-direction: column; width: calc((100% - 20px) / 3); min-width: 280px; height: clamp(340px, 52vh, 620px); min-height: 220px; border: 1px solid #303a46; border-radius: 10px; overflow: hidden; resize: both; background: #1a212a; }
     .videos.one .camera { width: 100%; }
     .videos.two .camera { width: calc((100% - 10px) / 2); }
     .camera[hidden] { display: none; }
-    .camera h2 { margin: 0; padding: 7px 12px; font-size: .95rem; font-weight: 600; }
+    .camera h2 { margin: 0; padding: 3px 8px; font-size: .75rem; font-weight: 600; }
     .picture { position: relative; flex: 1; min-height: 0; background: #050709; overflow: hidden; }
     video, canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
     canvas { display: none; position: absolute; inset: 0; background: #050709; }
     .videos.frozen canvas { display: block; }
     .videos.frozen video { opacity: .01; }
     .videos.seeking .picture::after { content: 'Aggiornamento frame…'; position: absolute; inset: 0; display: grid; place-items: center; background: #050709; color: #aab5c2; }
-    .picture.drop-target { outline: 3px solid #64c7f5; outline-offset: -3px; }
     #bodyVideo, #bodyCanvas { transform: rotate(180deg); }
     .labels-panel { margin: 0 0 10px; padding: 8px 12px; border: 1px solid #354250; border-radius: 8px; background: #1a212a; }
     .labels-panel summary { cursor: pointer; font-weight: 600; }
     #palette { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
     .palette-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
     .palette-group strong { margin-right: 3px; color: #aab5c2; font-size: .8rem; }
-    .label-chip { padding: 4px 8px; border: 1px solid #63788a; border-radius: 5px; background: #293948; font-size: .82rem; cursor: grab; user-select: none; }
-    .label-chip:active { cursor: grabbing; }
+    .label-chip { padding: 4px 8px; border: 1px solid #63788a; border-radius: 5px; background: #293948; font-size: .82rem; }
     .timeline { position: relative; z-index: 2; margin-top: 10px; padding: 7px 12px 12px; border: 1px solid #303a46; border-radius: 8px; background: #1a212a; }
     .transport { gap: 4px 8px; margin-bottom: 3px; }
     .transport button { min-height: 24px; padding: 2px 6px; border-radius: 4px; font-size: .78rem; line-height: 1.2; }
@@ -57,7 +56,8 @@
     .ruler-name { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: center; border-right: 1px solid #96a7b5; font-size: .72rem; font-weight: 700; letter-spacing: .08em; }
     .ruler-surface { grid-column: 2; grid-row: 1; }
     #ruler { position: absolute; inset: 0 9px; font-size: .64rem; font-weight: 650; font-variant-numeric: tabular-nums; }
-    .tick { position: absolute; bottom: 0; height: 7px; border-left: 1px solid #596a77; }
+    .tick { position: absolute; bottom: 0; height: 4px; border-left: 1px solid #bac5ce; }
+    .tick.major { height: 7px; border-left-color: #111; }
     .tick span { position: absolute; bottom: 7px; left: 3px; white-space: nowrap; }
     #slider { appearance: none; position: absolute; inset: 0; z-index: 2; display: block; width: 100%; height: 22px; margin: 0; opacity: 0; cursor: ew-resize; }
     #slider:disabled { cursor: default; }
@@ -66,8 +66,10 @@
     #annotationRows { grid-column: 1 / -1; grid-row: 2; min-height: 56px; background: var(--surface); }
     #gridLines { grid-column: 2; grid-row: 2; position: relative; z-index: 1; margin: 0 9px; pointer-events: none; }
     .grid-line { position: absolute; top: 0; bottom: 0; border-left: 1px solid #bac5ce; }
+    .grid-line.major { border-left-color: #111; }
     .annotation-row { display: grid; grid-template-columns: var(--track-name-width) minmax(0, 1fr); min-height: 32px; border-bottom: 1px solid #d6dde5; }
-    .track-name { display: flex; align-items: center; padding: 3px 8px; overflow: hidden; border-right: 1px solid #d6dde5; color: #27323c; font-size: .75rem; white-space: nowrap; text-overflow: ellipsis; }
+    .track-name { display: flex; align-items: center; padding: 3px 8px; overflow: hidden; border: 0; border-right: 1px solid #d6dde5; border-radius: 0; background: none; color: #27323c; font-size: .75rem; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+    .track-name:hover:enabled { background: #d7e0e5; }
     .annotation-track { position: relative; min-height: 31px; margin: 0 9px; }
     .annotation-bar { position: absolute; z-index: 2; height: 24px; min-width: 20px; border: 1px solid #a3d5ed; border-radius: 3px; background: #3d96c3; box-shadow: 0 1px 3px #0009; }
     .annotation-bar[data-level=mid] { background: #cda668; }
@@ -76,11 +78,15 @@
     .annotation-bar.pending { background-image: repeating-linear-gradient(45deg, #0000 0 5px, #ffffff55 5px 9px); }
     .annotation-caption { display: block; width: 100%; height: 100%; padding: 1px 12px; overflow: hidden; border: 0; border-radius: 0; background: none; color: #14212b; font-size: .72rem; font-weight: 600; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
     .annotation-caption:hover:enabled { background: #ffffff55; }
-    .annotation-handle { position: absolute; z-index: 1; top: 0; bottom: 0; width: 9px; border: 1px solid #10202a; background: #edf5f9; cursor: ew-resize; touch-action: none; }
+    .annotation-handle { position: absolute; z-index: 1; top: 0; bottom: 0; width: 9px; cursor: ew-resize; touch-action: none; }
+    .annotation-handle::before { content: ''; position: absolute; top: 0; bottom: 0; width: 3px; background: #edf5f9; pointer-events: none; }
     .annotation-handle.start { left: 0; }
+    .annotation-handle.start::before { left: 0; }
     .annotation-handle.end { right: 0; }
+    .annotation-handle.end::before { right: 0; }
     .annotation-bar.point { min-width: 12px; width: 12px !important; }
     .annotation-bar.point .annotation-handle { width: 12px; }
+    .annotation-bar.point .annotation-handle::before { width: 4px; }
     #playheadLine { grid-column: 2; grid-row: 1 / 3; position: relative; z-index: 4; margin: 0 9px; pointer-events: none; }
     #playheadLine::before { content: ''; position: absolute; top: 11px; bottom: 0; left: var(--progress); border-left: 2px solid #168ec4; transform: translateX(-1px); }
     #status:not(:empty) { margin-top: 7px; }
@@ -97,6 +103,8 @@
     .edit-wide { grid-column: 1 / -1; }
     .dialog-actions { display: flex; gap: 8px; margin-top: 16px; }
     .dialog-actions button:last-child { margin-left: auto; }
+    #chooseList { display: grid; gap: 6px; margin: 12px 0; }
+    #chooseList button { text-align: left; }
     @media (max-width: 700px) { .visibility { margin-left: 0; width: 100%; padding: 0; } }
   </style>
 </head>
@@ -114,13 +122,14 @@
       <label><input type="checkbox" data-camera="body" checked> Body</label>
       <label><input type="checkbox" data-camera="external" checked> Esterna</label>
       <label><input type="checkbox" data-camera="aria" checked> Aria</label>
+      <button id="resetViews" type="button" aria-label="Ripristina le dimensioni dei video" title="Ripristina le dimensioni dei video">↺ Dimensioni</button>
     </div>
   </div>
 
   <details id="labelsPanel" class="labels-panel"><summary>Label · trascina sul video o clicca al frame iniziale</summary><div id="palette"></div></details>
 
   <div id="videos" class="videos">
-    <section class="camera" data-camera="body"><h2>Body · RGB · ruotata 180°</h2><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas></div></section>
+    <section class="camera" data-camera="body"><h2>Body</h2><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas></div></section>
     <section class="camera" data-camera="external"><h2>Esterna</h2><div class="picture"><video id="externalVideo" muted playsinline preload="metadata"></video><canvas id="externalCanvas" aria-hidden="true"></canvas></div></section>
     <section class="camera" data-camera="aria"><h2>Aria</h2><div class="picture"><video id="ariaVideo" muted playsinline preload="metadata"></video><canvas id="ariaCanvas" aria-hidden="true"></canvas></div></section>
   </div>
@@ -166,6 +175,7 @@
     <div class="dialog-actions"><button type="submit">Applica</button><button id="deleteLabel" type="button">Elimina</button><button id="cancelEdit" type="button">Chiudi</button></div>
   </form>
 </dialog>
+<dialog id="chooseDialog" aria-label="Scegli annotazione"><h2 id="chooseTitle"></h2><div id="chooseList"></div><button id="closeChoose" type="button">Chiudi</button></dialog>
 <script>
   const cameras = ['body', 'external', 'aria'];
   const videos = Object.fromEntries(cameras.map(camera => [camera, document.getElementById(camera + 'Video')]));
@@ -188,6 +198,7 @@
   const endButton = document.getElementById('endLabel');
   const saveButton = document.getElementById('saveLabels');
   const editDialog = document.getElementById('editDialog');
+  const chooseDialog = document.getElementById('chooseDialog');
   const controls = [slider, playButton, document.getElementById('previous'), document.getElementById('next')];
   let catalog = {};
   let frames = 0;
@@ -266,10 +277,13 @@
       const row = document.createElement('div');
       row.className = 'annotation-row';
       row.setAttribute('aria-label', `Traccia ${records[0].level} ${records[0].label}`);
-      const name = document.createElement('div');
+      const name = document.createElement('button');
       name.className = 'track-name';
+      name.type = 'button';
       name.textContent = `${records[0].level} · ${records[0].label}`;
-      name.title = name.textContent;
+      name.title = `Modifica ${name.textContent}`;
+      name.disabled = records.every(record => record.id === pendingId);
+      name.addEventListener('click', () => openTrack(records));
       const track = document.createElement('div');
       track.className = 'annotation-track';
       track.addEventListener('pointerdown', event => {
@@ -316,6 +330,7 @@
             event.stopPropagation();
             draggingHandle = {record, edge, track, bar, caption};
             handle.setPointerCapture(event.pointerId);
+            seek(record[edge === 'start' ? 'start_frame' : 'end_frame'] - 1);
           });
           handle.addEventListener('pointermove', event => {
             if (!draggingHandle || draggingHandle.record !== record || !handle.hasPointerCapture(event.pointerId)) return;
@@ -358,6 +373,8 @@
     }
     syncTimes(record);
     markDirty();
+    const edgeFrame = record[edge === 'start' ? 'start_frame' : 'end_frame'] - 1;
+    if (pendingFrame !== edgeFrame || playing) seek(edgeFrame);
   }
 
   function renderPalette() {
@@ -376,14 +393,8 @@
         const chip = document.createElement('button');
         chip.className = 'label-chip';
         chip.type = 'button';
-        chip.draggable = true;
         chip.textContent = choice.phase ? `${choice.label} · ${choice.phase}` : choice.label;
         chip.title = choice.definition || choice.label;
-        chip.addEventListener('dragstart', event => {
-          event.dataTransfer.setData('application/x-exo-label', JSON.stringify({level, label: choice.label,
-            phase: choice.phase}));
-          event.dataTransfer.effectAllowed = 'copy';
-        });
         chip.addEventListener('click', () => addChoice(choice));
         group.append(chip);
       }
@@ -409,7 +420,7 @@
         && item.phase === choice.phase)) return;
     if (pendingId !== null) { message('Chiudi prima l’intervallo corrente con End.', 'warn'); return; }
     if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
-    const record = newRecord(choice.level, choice.label, Number(slider.value) + 1, choice.phase);
+    const record = newRecord(choice.level, choice.label, pendingFrame + 1, choice.phase);
     message(record.id === pendingId
       ? `${record.label}: inizio al frame ${record.start_frame}. Vai al frame finale e premi End.`
       : `${record.label}: evento al frame ${record.start_frame}.`);
@@ -423,6 +434,21 @@
   function fillSelect(select, values, current) {
     select.replaceChildren(new Option('—', ''), ...values.map(value => new Option(value, value)));
     select.value = current ?? '';
+  }
+
+  function openTrack(records) {
+    const editable = records.filter(record => record.id !== pendingId);
+    if (editable.length === 1) { openEditor(editable[0].id); return; }
+    if (!editable.length) return;
+    document.getElementById('chooseTitle').textContent = `${editable[0].level} · ${editable[0].label}`;
+    document.getElementById('chooseList').replaceChildren(...editable.map(record => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = `#${record.id} · ${recordSummary(record)}`;
+      button.addEventListener('click', () => { chooseDialog.close(); openEditor(record.id); });
+      return button;
+    }));
+    chooseDialog.showModal();
   }
 
   function openEditor(id) {
@@ -474,19 +500,19 @@
   function updateRuler() {
     ruler.replaceChildren(document.getElementById('playheadHead'));
     gridLines.replaceChildren();
-    const rough = Math.max(1, (frames - 1) / 6);
-    const magnitude = 10 ** Math.floor(Math.log10(rough));
-    const step = [1, 2, 5, 10].map(value => value * magnitude).find(value => value >= rough);
-    for (let frame = 0; frame < frames; frame += step) {
+    for (let frame = 0; frame < frames; frame += 10) {
+      const major = frame % 50 === 0;
       const tick = document.createElement('div');
-      tick.className = 'tick';
+      tick.className = `tick${major ? ' major' : ''}`;
       tick.style.left = `${frames > 1 ? frame / (frames - 1) * 100 : 0}%`;
-      const label = document.createElement('span');
-      label.textContent = frame + 1;
-      tick.append(label);
+      if (major) {
+        const label = document.createElement('span');
+        label.textContent = frame + 1;
+        tick.append(label);
+      }
       ruler.append(tick);
       const line = document.createElement('div');
-      line.className = 'grid-line';
+      line.className = `grid-line${major ? ' major' : ''}`;
       line.style.left = tick.style.left;
       gridLines.append(line);
     }
@@ -800,6 +826,7 @@
   endButton.addEventListener('click', closeInterval);
   saveButton.addEventListener('click', saveLabels);
   document.getElementById('cancelEdit').addEventListener('click', () => editDialog.close());
+  document.getElementById('closeChoose').addEventListener('click', () => chooseDialog.close());
   document.getElementById('deleteLabel').addEventListener('click', () => {
     annotations = annotations.filter(item => item.id !== editingId);
     annotations.forEach(item => { item.parents = item.parents.filter(id => id !== editingId); });
@@ -843,24 +870,6 @@
     markDirty();
     renderAnnotations();
   });
-  document.querySelectorAll('.picture').forEach(picture => {
-    picture.addEventListener('dragover', event => {
-      if (!frames || !labelSchema?.task || !Array.from(event.dataTransfer.types).includes('application/x-exo-label')) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'copy';
-      picture.classList.add('drop-target');
-    });
-    picture.addEventListener('dragleave', () => picture.classList.remove('drop-target'));
-    picture.addEventListener('drop', async event => {
-      event.preventDefault();
-      picture.classList.remove('drop-target');
-      if (!frames || !labelSchema?.task) return;
-      let choice;
-      try { choice = JSON.parse(event.dataTransfer.getData('application/x-exo-label')); }
-      catch { return; }
-      await addChoice(choice);
-    });
-  });
   playButton.addEventListener('click', togglePlay);
   document.getElementById('help').addEventListener('click', () => {
     document.getElementById('helpDetails').textContent = frames
@@ -890,8 +899,14 @@
     });
   });
   document.querySelectorAll('.visibility input').forEach(input => input.addEventListener('change', updateVisibility));
+  document.getElementById('resetViews').addEventListener('click', () => {
+    document.querySelectorAll('.camera').forEach(camera => {
+      camera.style.removeProperty('width');
+      camera.style.removeProperty('height');
+    });
+  });
   document.addEventListener('keydown', event => {
-    if (helpDialog.open || editDialog.open || event.altKey || event.ctrlKey || event.metaKey
+    if (helpDialog.open || editDialog.open || chooseDialog.open || event.altKey || event.ctrlKey || event.metaKey
         || event.target.closest('input:not(#slider), textarea, select, .annotation-handle')) return;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault();

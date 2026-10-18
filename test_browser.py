@@ -72,7 +72,9 @@ def main():
             "rulerHeight:ruler.getBoundingClientRect().height,rulerColor:getComputedStyle(ruler).backgroundColor,"
             "trackColor:getComputedStyle(track).backgroundColor,buttonHeight:button.getBoundingClientRect().height,"
             "cameraVisible:camera.getBoundingClientRect().width>0,"
-            "compactAbsent:!document.getElementById('compactTransport')};"
+            "compactAbsent:!document.getElementById('compactTransport'),"
+            "titles:[...document.querySelectorAll('.camera h2')].map(x=>x.textContent),"
+            "titleFont:parseFloat(getComputedStyle(document.querySelector('.camera h2')).fontSize)};"
             "document.getElementById('selectionSummary').click();initial.opened=panel.open;"
             "initial.selectVisible=document.getElementById('subject').getBoundingClientRect().width>0;"
             "document.getElementById('selectionSummary').click();return initial", "args": []})
@@ -81,6 +83,7 @@ def main():
         assert chrome["rulerHeight"] == 22 and chrome["rulerColor"] == "rgb(232, 236, 239)", chrome
         assert chrome["trackColor"] == chrome["rulerColor"], chrome
         assert chrome["compactAbsent"] and chrome["buttonHeight"] <= 28, chrome
+        assert chrome["titles"] == ["Body", "Esterna", "Aria"] and chrome["titleFont"] < 13, chrome
         initial = state["hashes"][0]
         webdriver(endpoint + "/execute/sync", {"script":
             "let s=document.getElementById('slider');for(const n of [2,7,4,8])"
@@ -95,7 +98,7 @@ def main():
         assert state["hashes"][0] != initial and len(set(state["hashes"])) == 1, state
         assert not state["header"] and state["layout"] == "flex" and len(set(state["rowTop"])) == 1, state
         assert state["resize"] == "both" and len(state["navIconSizes"]) == 3 and max(state["navIconSizes"]) < 16, state
-        assert state["readout"] == "Frame 9 / 120" and state["rulerLabels"] == ["1", "21", "41", "61", "81", "101"], state
+        assert state["readout"] == "Frame 9 / 120" and state["rulerLabels"] == ["1", "51", "101"], state
         assert state["status"] == "", state
         timeline = webdriver(endpoint + "/execute/sync", {"script":
             "let r=document.getElementById('ruler').getBoundingClientRect(),"
@@ -150,6 +153,12 @@ def main():
             "let r=document.querySelector('.camera').getBoundingClientRect();"
             "return {width:r.width,height:r.height}", "args": []})
         assert smaller["width"] <= resized["width"] - 35 and smaller["height"] <= resized["height"] - 20, (resized, smaller)
+        restored = webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('resetViews').click();"
+            "let cameras=[...document.querySelectorAll('.camera')],r=cameras[0].getBoundingClientRect();"
+            "return {width:r.width,height:r.height,inline:cameras.map(x=>[x.style.width,x.style.height])}", "args": []})
+        assert abs(restored["width"] - before["width"]) < 1 and abs(restored["height"] - before["height"]) < 1, (before, restored)
+        assert restored["inline"] == [["", ""]] * 3, restored
         webdriver(endpoint + "/execute/sync", {"script":
             "document.querySelector('.visibility input[data-camera=aria]').click();"
             "let s=document.getElementById('slider');s.value=10;"
@@ -201,14 +210,12 @@ def main():
                 break
             time.sleep(0.1)
         assert state["frame"] == 9 and not state["busy"], state
-        def drag_label(level, label):
+        def click_label(level, label):
             return webdriver(endpoint + "/execute/sync", {"script":
                 "let chip=[...document.querySelectorAll('.label-chip')].find(x=>x.textContent===arguments[1]"
                 "&&x.parentElement.querySelector('strong').textContent===arguments[0]);"
-                "if(!chip) return false;let d=new DataTransfer();chip.dispatchEvent(new DragEvent('dragstart',"
-                "{dataTransfer:d,bubbles:true}));document.querySelector('.picture').dispatchEvent("
-                "new DragEvent('drop',{dataTransfer:d,bubbles:true,cancelable:true}));return true", "args": [level, label]})
-        assert drag_label("High", "curl")
+                "if(!chip || chip.draggable) return false;chip.click();return true", "args": [level, label]})
+        assert click_label("High", "curl")
         draft = webdriver(endpoint + "/execute/sync", {"script":
             "return {end:document.getElementById('endLabel').disabled,save:document.getElementById('saveLabels').disabled,"
             "row:document.querySelector('.annotation-caption')?.textContent}", "args": []})
@@ -241,6 +248,13 @@ def main():
             "return {end:document.getElementById('endLabel').disabled,save:document.getElementById('saveLabels').disabled,"
             "row:document.querySelector('.annotation-caption')?.textContent}", "args": []})
         assert closed["end"] and not closed["save"] and "frame 10–20" in closed["row"], closed
+        from_name = webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelector('.track-name').click();"
+            "let dialog=document.getElementById('editDialog');"
+            "let result={open:dialog.open,start:document.getElementById('editStart').value,"
+            "end:document.getElementById('editEnd').value};"
+            "document.getElementById('cancelEdit').click();return result", "args": []})
+        assert from_name == {"open": True, "start": "10", "end": "20"}, from_name
         webdriver(endpoint + "/execute/sync", {"script":
             "let h=document.querySelector('.annotation-handle.end');h.focus();"
             "h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));"
@@ -286,8 +300,25 @@ def main():
                 {"type": "pointerMove", "duration": 0, "x": handle["x"], "y": handle["y"]},
                 {"type": "pointerDown", "button": 0},
                 {"type": "pointerMove", "duration": 350, "x": handle["x"] + 50, "y": handle["y"]},
-                {"type": "pointerUp", "button": 0},
             ]}]})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if not state["busy"]:
+                break
+            time.sleep(0.1)
+        dragging = webdriver(endpoint + "/execute/sync", {"script":
+            "let bar=document.querySelector('.annotation-bar'),"
+            "head=document.getElementById('playheadHead').getBoundingClientRect();"
+            "return {end:+bar.querySelector('.annotation-handle.end').getAttribute('aria-valuenow'),"
+            "frame:+document.getElementById('slider').value+1,readout:document.getElementById('readout').textContent,"
+            "barRight:bar.getBoundingClientRect().right,headX:head.x+head.width/2}", "args": []})
+        assert not state["busy"] and dragging["end"] > 21, (state, dragging)
+        assert dragging["frame"] == dragging["end"] and dragging["readout"] == f"Frame {dragging['end']} / 120", dragging
+        assert abs(dragging["barRight"] - dragging["headX"]) < 2, dragging
+        assert len(set(state["hashes"])) == 1, state
+        assert all(abs(t - ((dragging["frame"] - 1) / 30 + .001)) < .001 for t in state["times"]), state
+        webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
+            "parameters": {"pointerType": "mouse"}, "actions": [{"type": "pointerUp", "button": 0}]}]})
         moved = webdriver(endpoint + "/execute/sync", {"script":
             "return document.querySelector('.annotation-caption').textContent", "args": []})
         assert "frame 10–21" not in moved and "frame 10–" in moved, moved
@@ -304,7 +335,7 @@ def main():
             raise AssertionError(current)
 
         go_to(30)
-        assert drag_label("Mid", "curl_cycle")
+        assert click_label("Mid", "curl_cycle")
         go_to(40)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         webdriver(endpoint + "/execute/sync", {"script":
@@ -313,7 +344,7 @@ def main():
             "document.getElementById('editParents').options[0].selected=true;"
             "document.querySelector('#editForm button[type=submit]').click()", "args": []})
         go_to(32)
-        assert drag_label("Low", "move · flexion")
+        assert click_label("Low", "move · flexion")
         go_to(34)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         webdriver(endpoint + "/execute/sync", {"script":
@@ -324,7 +355,7 @@ def main():
             "document.getElementById('editParents').options[0].selected=true;"
             "document.querySelector('#editForm button[type=submit]').click()", "args": []})
         go_to(60)
-        assert drag_label("Aux", "sync")
+        assert click_label("Aux", "sync")
         point = webdriver(endpoint + "/execute/sync", {"script":
             "return {rows:[...document.querySelectorAll('.annotation-caption')].map(x=>x.textContent),"
             "end:document.getElementById('endLabel').disabled}", "args": []})
@@ -343,11 +374,11 @@ def main():
         assert saved["annotations"][2]["phase"] == "flexion", saved
         assert saved["annotations"][3]["level"] == "aux" and saved["annotations"][3]["t_start"] == saved["annotations"][3]["t_end"], saved
         go_to(12)
-        assert drag_label("High", "curl")
+        assert click_label("High", "curl")
         go_to(18)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         go_to(32)
-        assert drag_label("Low", "move · extension")
+        assert click_label("Low", "move · extension")
         go_to(35)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         grouped = webdriver(endpoint + "/execute/sync", {"script":
@@ -360,7 +391,9 @@ def main():
             "tracksX:rows.map(x=>x.querySelector('.annotation-track').getBoundingClientRect().x),"
             "rulerX:ruler.x,inside:document.getElementById('scrub').contains(document.getElementById('annotationRows')),"
             "tickX:[...document.querySelectorAll('#ruler .tick')].map(x=>x.getBoundingClientRect().x),"
-            "lines:[...document.querySelectorAll('#gridLines .grid-line')].map(x=>{let r=x.getBoundingClientRect();return {x:r.x,y:r.y,height:r.height}}),"
+            "lines:[...document.querySelectorAll('#gridLines .grid-line')].map(x=>{let r=x.getBoundingClientRect(),s=getComputedStyle(x);"
+            "return {x:r.x,y:r.y,height:r.height,major:x.classList.contains('major'),"
+            "color:s.borderLeftColor,width:s.borderLeftWidth}}),"
             "trackTop:document.getElementById('annotationRows').getBoundingClientRect().y,"
             "trackHeight:document.getElementById('annotationRows').getBoundingClientRect().height}",
             "args": []})
@@ -370,9 +403,24 @@ def main():
         assert len(set(grouped["highY"])) == 2 and len(set(grouped["lowY"])) == 2, grouped
         assert all(abs(x - grouped["rulerX"]) < 1 for x in grouped["tracksX"]), grouped
         assert len(grouped["tickX"]) == len(grouped["lines"]) > 0, grouped
+        assert len(grouped["lines"]) == 12 and [i for i, line in enumerate(grouped["lines"]) if line["major"]] == [0, 5, 10], grouped
+        assert all(line["width"] == "1px" and line["color"] == ("rgb(17, 17, 17)" if line["major"] else "rgb(186, 197, 206)")
+                   for line in grouped["lines"]), grouped
         assert all(abs(tick - line["x"]) < 1 and abs(line["y"] - grouped["trackTop"]) < 1
                    and abs(line["height"] - grouped["trackHeight"]) < 1
                    for tick, line in zip(grouped["tickX"], grouped["lines"])), grouped
+        from_shared_name = webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelector('.track-name').click();"
+            "let chooser=document.getElementById('chooseDialog');"
+            "let options=[...document.querySelectorAll('#chooseList button')].map(x=>x.textContent);"
+            "let opened=chooser.open;document.querySelectorAll('#chooseList button')[1].click();"
+            "let result={opened,options,chooserClosed:!chooser.open,"
+            "editorOpen:document.getElementById('editDialog').open,"
+            "start:document.getElementById('editStart').value,end:document.getElementById('editEnd').value};"
+            "document.getElementById('cancelEdit').click();return result", "args": []})
+        assert from_shared_name["opened"] and from_shared_name["chooserClosed"] and from_shared_name["editorOpen"], from_shared_name
+        assert len(from_shared_name["options"]) == 2 and "frame 12–18" in from_shared_name["options"][1], from_shared_name
+        assert from_shared_name["start"] == "12" and from_shared_name["end"] == "18", from_shared_name
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
         for _ in range(50):
             saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
@@ -381,9 +429,9 @@ def main():
             time.sleep(0.1)
         assert len(saved["annotations"]) == 6, saved
         go_to(119)
-        assert drag_label("Aux", "sync")
+        assert click_label("Aux", "sync")
         go_to(120)
-        assert drag_label("Aux", "sync")
+        assert click_label("Aux", "sync")
         edge = webdriver(endpoint + "/execute/sync", {"script":
             "let row=[...document.querySelectorAll('.annotation-row')].find(x=>x.querySelector('.track-name').textContent==='aux · sync');"
             "let right=row.querySelector('.annotation-track').getBoundingClientRect().right;"
