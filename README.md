@@ -70,7 +70,7 @@ inizio/fine: la testina segue il bordo e i video mostrano il frame selezionato. 
 selezionato si possono usare anche le frecce per variare di un frame. Cliccare
 il nome della label nella colonna **FRAME** o il suo segmento per impostare
 frame esatti, attributi dello schema,
-eventuali label genitore, nota, o per eliminare l'annotazione. Se sulla stessa
+eventuali label genitore tramite caselle da spuntare, nota, o per eliminare l'annotazione. Se sulla stessa
 riga ci sono più annotazioni, il clic sul nome apre una scelta per frame. La palette
 offre solo le label previste dal task della sequenza. `static_0` e `static_1`
 non hanno ancora un task in `label_schema.json`, quindi non offrono label.

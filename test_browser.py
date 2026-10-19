@@ -365,22 +365,26 @@ def main():
         assert click_label("Mid", "curl_cycle")
         go_to(40)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
-        webdriver(endpoint + "/execute/sync", {"script":
+        mid_parent = webdriver(endpoint + "/execute/sync", {"script":
             "document.querySelectorAll('.annotation-caption')[1].click();"
-            "document.getElementById('editRep').value='2';"
-            "document.getElementById('editParents').options[0].selected=true;"
-            "document.querySelector('#editForm button[type=submit]').click()", "args": []})
+            "let field=document.getElementById('editParents'),choice=field.querySelector('label');"
+            "let result={visible:!field.hidden,text:choice.textContent,checked:choice.querySelector('input').checked};"
+            "choice.click();document.getElementById('editRep').value='2';"
+            "document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
+        assert mid_parent["visible"] and "#1 curl" in mid_parent["text"] and not mid_parent["checked"], mid_parent
         go_to(32)
         assert click_label("Low", "move · flexion")
         go_to(34)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
-        webdriver(endpoint + "/execute/sync", {"script":
+        low_parent = webdriver(endpoint + "/execute/sync", {"script":
             "document.querySelectorAll('.annotation-caption')[2].click();"
+            "let choice=document.querySelector('#parentChoices label');"
+            "let result={text:choice.textContent,checked:choice.querySelector('input').checked};"
             "document.getElementById('editLoad').value='both';"
             "document.getElementById('editContact').value='both';"
             "document.getElementById('editTarget').value='hand';"
-            "document.getElementById('editParents').options[0].selected=true;"
-            "document.querySelector('#editForm button[type=submit]').click()", "args": []})
+            "choice.click();document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
+        assert "#2 curl_cycle" in low_parent["text"] and not low_parent["checked"], low_parent
         go_to(60)
         assert click_label("Aux", "sync")
         point = webdriver(endpoint + "/execute/sync", {"script":
@@ -400,6 +404,13 @@ def main():
         assert saved["annotations"][2]["contact_points"] == "both" and saved["annotations"][2]["target"] == "hand", saved
         assert saved["annotations"][2]["phase"] == "flexion", saved
         assert saved["annotations"][3]["level"] == "aux" and saved["annotations"][3]["t_start"] == saved["annotations"][3]["t_end"], saved
+        reopened_parent = webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelector('[data-record-id=\"2\"] .annotation-caption').click();"
+            "let choice=document.querySelector('#parentChoices label'),"
+            "result={checked:choice.querySelector('input').checked,"
+            "highlight:getComputedStyle(choice).backgroundColor};"
+            "document.getElementById('cancelEdit').click();return result", "args": []})
+        assert reopened_parent == {"checked": True, "highlight": "rgb(40, 67, 88)"}, reopened_parent
         go_to(12)
         assert click_label("High", "curl")
         go_to(18)
@@ -448,6 +459,14 @@ def main():
         assert from_shared_name["opened"] and from_shared_name["chooserClosed"] and from_shared_name["editorOpen"], from_shared_name
         assert len(from_shared_name["options"]) == 2 and "frame 12–18" in from_shared_name["options"][1], from_shared_name
         assert from_shared_name["start"] == "12" and from_shared_name["end"] == "18", from_shared_name
+        multiple_parents = webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelector('[data-record-id=\"2\"] .annotation-caption').click();"
+            "let labels=[...document.querySelectorAll('#parentChoices label')],"
+            "before=labels.map(x=>x.querySelector('input').checked);"
+            "labels[1].click();let after=labels.map(x=>x.querySelector('input').checked);"
+            "document.querySelector('#editForm button[type=submit]').click();"
+            "return {count:labels.length,before,after}", "args": []})
+        assert multiple_parents == {"count": 2, "before": [True, False], "after": [True, True]}, multiple_parents
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
         for _ in range(50):
             saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
@@ -455,6 +474,7 @@ def main():
                 break
             time.sleep(0.1)
         assert len(saved["annotations"]) == 6, saved
+        assert saved["annotations"][1]["parents"] == [1, 5], saved
         go_to(119)
         assert click_label("Aux", "sync")
         go_to(120)

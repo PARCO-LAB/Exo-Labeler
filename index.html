@@ -101,7 +101,14 @@
     .edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .edit-grid [hidden] { display: none; }
     .edit-grid label { display: grid; gap: 3px; }
-    .edit-grid input, .edit-grid select, .edit-grid textarea { width: 100%; min-width: 0; padding: 6px; color: #eef2f6; background: #141c24; border: 1px solid #607080; border-radius: 5px; font: inherit; }
+    .edit-grid input:not([type=checkbox]), .edit-grid select, .edit-grid textarea { width: 100%; min-width: 0; padding: 6px; color: #eef2f6; background: #141c24; border: 1px solid #607080; border-radius: 5px; font: inherit; }
+    .edit-grid fieldset { min-width: 0; margin: 0; padding: 8px; border: 1px solid #607080; border-radius: 5px; }
+    .edit-grid legend { padding: 0 4px; font-size: .85rem; color: #b9c6d3; }
+    #parentChoices { display: grid; gap: 4px; max-height: 160px; overflow-y: auto; }
+    #parentChoices label { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px; cursor: pointer; }
+    #parentChoices label:hover { background: #354354; }
+    #parentChoices label:has(input:checked) { background: #284358; outline: 1px solid #64c7f5; }
+    #parentChoices input { flex: 0 0 16px; width: 16px; height: 16px; accent-color: #64c7f5; }
     .edit-wide { grid-column: 1 / -1; }
     .dialog-actions { display: flex; gap: 8px; margin-top: 16px; }
     .dialog-actions button:last-child { margin-left: auto; }
@@ -171,7 +178,7 @@
       <label class="for-low">Punti di contatto<select id="editContact"></select></label>
       <label class="for-phase">Fase<select id="editPhase"></select></label>
       <label class="for-low">Target<input id="editTarget" maxlength="200"></label>
-      <label class="for-parent edit-wide">Label genitore (selezione multipla)<select id="editParents" multiple size="4"></select></label>
+      <fieldset id="editParents" class="for-parent edit-wide"><legend>Label genitore</legend><div id="parentChoices"></div></fieldset>
       <label class="edit-wide">Nota<textarea id="editNote" rows="2" maxlength="5000"></textarea></label>
     </div>
     <div class="dialog-actions"><button type="submit">Applica</button><button id="deleteLabel" type="button">Elimina</button><button id="cancelEdit" type="button">Chiudi</button></div>
@@ -501,12 +508,19 @@
     document.querySelectorAll('.for-direction').forEach(item => item.hidden = !labelSchema.annotated_attributes.includes('direction'));
     document.querySelectorAll('.for-parent').forEach(item => item.hidden = !['mid', 'low'].includes(record.level));
     const parentLevel = record.level === 'mid' ? 'high' : 'mid';
-    const parentSelect = document.getElementById('editParents');
-    parentSelect.replaceChildren(...annotations.filter(item => item.level === parentLevel).map(item => {
-      const option = new Option(`#${item.id} ${item.label} · ${item.start_frame}–${item.end_frame}`, item.id);
-      option.selected = record.parents.includes(item.id);
-      return option;
+    const parentChoices = document.getElementById('parentChoices');
+    const candidates = annotations.filter(item => item.level === parentLevel)
+      .sort((a, b) => a.start_frame - b.start_frame || a.id - b.id);
+    parentChoices.replaceChildren(...candidates.map(item => {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = item.id;
+      checkbox.checked = record.parents.includes(item.id);
+      label.append(checkbox, `#${item.id} ${item.label} · frame ${item.start_frame}–${item.end_frame}`);
+      return label;
     }));
+    if (!candidates.length) parentChoices.textContent = `Nessuna label ${parentLevel} disponibile.`;
     editDialog.showModal();
   }
 
@@ -887,7 +901,7 @@
     record.target = record.level === 'low' ? document.getElementById('editTarget').value || null : null;
     record.note = document.getElementById('editNote').value || null;
     record.parents = ['mid', 'low'].includes(record.level)
-      ? [...document.getElementById('editParents').selectedOptions].map(option => Number(option.value)) : [];
+      ? [...document.querySelectorAll('#parentChoices input:checked')].map(input => Number(input.value)) : [];
     syncTimes(record);
     editDialog.close();
     editingId = null;
