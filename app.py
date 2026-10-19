@@ -36,18 +36,16 @@ def label_choices(sequence):
             choices.append({"level": level, "label": label, "definition": definition, "phase": phase})
             seen.add((level, label, phase))
 
-    def add_actions(items):
-        for item in items:
-            if "action" in item:
-                add("low", item["action"], definitions.get(item["action"], ""), item.get("phase"))
-            add_actions(item.get("group", []))
-
-    definitions = {entry["label"]: entry["definition"] for entry in LABEL_SCHEMA["atomic_actions"]}
-    for high in task["high_level"]:
-        add("high", high["label"])
-        for mid in high.get("mid_level", []):
-            add("mid", mid["label"])
-            add_actions(mid.get("atomic_sequence", []))
+    definitions = {entry["label"]: entry["definition"]
+                   for level in ("high_level_labels", "atomic_labels") for entry in LABEL_SCHEMA[level]}
+    high = task["high"]
+    add("high", high["label"], definitions.get(high["label"], ""))
+    mid = high["mid"]
+    add("mid", mid["label"])
+    for low in mid.get("low", []):
+        add("low", low["label"])
+        for atomic in low.get("atomic", []):
+            add("atomic", atomic["label"], definitions.get(atomic["label"], ""), atomic.get("phase"))
     for auxiliary in LABEL_SCHEMA["auxiliary_labels"]:
         add("aux", auxiliary["label"], auxiliary["definition"])
     return task, choices
@@ -84,6 +82,7 @@ def validate_labels(document, subject, sequence, files):
     max_frame = min(probe(path)["frames"] for path in files.values())
     fields = {"id", "level", "label", "phase", "start_frame", "end_frame", "t_start", "t_end", "parents",
               "rep", "side", "direction", "external_load", "contact_points", "target", "note"}
+    lowest = next(level for level in ("atomic", "low", "mid") if any(choice["level"] == level for choice in choices)) if task else None
     ids = {}
     for record in records:
         if isinstance(record, dict) and "phase" not in record:
@@ -96,7 +95,7 @@ def validate_labels(document, subject, sequence, files):
             raise ValueError("ID o intervallo di frame non valido")
         if (record["level"], record["label"]) not in allowed:
             raise ValueError("Label non prevista per questa sequenza")
-        if record["phase"] is not None and (record["level"], record["label"], record["phase"]) not in phases:
+        if (record["level"], record["label"], record["phase"]) not in phases:
             raise ValueError("Fase non prevista per questa label")
         if record["label"] == "sync" and (record["level"] != "aux" or start != end):
             raise ValueError("sync deve indicare un solo frame")
@@ -117,14 +116,19 @@ def validate_labels(document, subject, sequence, files):
         for name, limit in (("target", 200), ("note", 5000)):
             if record[name] is not None and (not isinstance(record[name], str) or len(record[name]) > limit):
                 raise ValueError(f"Valore non valido per {name}")
-        if (record["level"] in ("high", "aux") and (record["parents"] or record["rep"] is not None)
-                or record["level"] != "low" and any(record[name] is not None for name in ("external_load", "contact_points", "target"))
+        if (record["level"] in ("high", "aux") and record["parents"]
+                or record["level"] != "mid" and any(record[name] is not None for name in ("rep", "side", "direction"))
+                or record["level"] != lowest and any(record[name] is not None for name in ("external_load", "contact_points"))
+                or record["level"] != "low" and record["target"] is not None
                 or task and "side" not in task["annotated_attributes"] and record["side"] is not None
                 or task and "direction" not in task["annotated_attributes"] and record["direction"] is not None):
             raise ValueError("Attributi non consentiti per questa label")
         ids[identifier] = record
+    present_levels = {record["level"] for record in records}
+    parent_order = {"high": (), "mid": ("high",), "low": ("mid", "high"),
+                    "atomic": ("low", "mid", "high"), "aux": ()}
     for record in records:
-        parent_level = {"high": None, "mid": "high", "low": "mid", "aux": None}[record["level"]]
+        parent_level = next((level for level in parent_order[record["level"]] if level in present_levels), None)
         if any(parent not in ids or ids[parent]["level"] != parent_level for parent in record["parents"]):
             raise ValueError("Una label fa riferimento a un genitore non valido")
     return document
@@ -305,6 +309,9 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 self.send_json({"schema_version": LABEL_SCHEMA["schema_version"],
                                 "task": task["trial_id"] if task else None,
                                 "annotated_attributes": task["annotated_attributes"] if task else [],
+                                "task_attributes": task["attributes"] if task else {},
+                                "lowest_level": next((level for level in ("atomic", "low", "mid")
+                                                      if any(choice["level"] == level for choice in choices)), None),
                                 "choices": choices, "attribute_values": LABEL_SCHEMA["attribute_values"]})
                 return
             try:
@@ -312,10 +319,20 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 content = path.read_bytes() if path.exists() else None
                 if content is not None and len(content) > MAX_LABEL_BYTES:
                     raise ValueError("File di label troppo grande")
-                document = (validate_labels(json.loads(content), subject, sequence,
-                                            self.server.recordings[subject][sequence]) if content is not None
-                            else {"schema_version": LABEL_SCHEMA["schema_version"], "subject": subject,
-                                  "sequence": sequence, "fps": 30, "annotations": []})
+                if content is not None:
+                    document = json.loads(content)
+                    if isinstance(document, dict) and document.get("schema_version") != LABEL_SCHEMA["schema_version"]:
+                        if document.get("schema_version") == "0.1" and document.get("annotations") == []:
+                            document["schema_version"] = LABEL_SCHEMA["schema_version"]
+                        else:
+                            self.send_json({"error": "Annotazioni salvate con uno schema precedente: "
+                                           "migrazione manuale necessaria prima di modificarle."}, HTTPStatus.CONFLICT)
+                            return
+                    document = validate_labels(document, subject, sequence,
+                                               self.server.recordings[subject][sequence])
+                else:
+                    document = {"schema_version": LABEL_SCHEMA["schema_version"], "subject": subject,
+                                "sequence": sequence, "fps": 30, "annotations": []}
                 self.send_json({"data": document, "revision": label_revision(content)})
             except (OSError, ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError,
                     subprocess.SubprocessError) as exc:

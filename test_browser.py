@@ -91,8 +91,8 @@ def main():
                 "&&x.parentElement.querySelector('strong').textContent===arguments[0]);"
                 "if(!chip)return null;let r=chip.getBoundingClientRect();"
                 "return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}", "args": [level, label]})
-        for level, label, expected in [("Low", "move · flexion", "Free segmental movement"),
-                                       ("High", "curl", "Definizione non presente nello schema")]:
+        for level, label, expected in [("Low", "flexion", "Definizione non presente nello schema"),
+                                       ("High", "curl", "Alternating elbow flexion-extension")]:
             center = label_center(level, label)
             assert center, (level, label)
             webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
@@ -285,11 +285,11 @@ def main():
         webdriver(endpoint + "/execute/sync", {"script":
             "let h=document.querySelector('.annotation-handle.end');h.focus();"
             "h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));"
-            "document.querySelector('.annotation-caption').click();document.getElementById('editSide').value='left';"
+            "document.querySelector('.annotation-caption').click();"
             "document.querySelector('#editForm button[type=submit]').click()", "args": []})
         edited = webdriver(endpoint + "/execute/sync", {"script":
             "return {row:document.querySelector('.annotation-caption').textContent,dialog:document.getElementById('editDialog').open}", "args": []})
-        assert "frame 10–21" in edited["row"] and "side: left" in edited["row"] and not edited["dialog"], edited
+        assert "frame 10–21" in edited["row"] and "side:" not in edited["row"] and not edited["dialog"], edited
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
         for _ in range(50):
             if not webdriver(endpoint + "/execute/sync", {"script":
@@ -299,7 +299,7 @@ def main():
         saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
         assert saved["annotations"][0]["start_frame"] == 10 and saved["annotations"][0]["end_frame"] == 21, saved
         assert saved["annotations"][0]["t_start"] == 9 / 30 and saved["annotations"][0]["t_end"] == 21 / 30, saved
-        assert saved["annotations"][0]["side"] == "left", saved
+        assert saved["annotations"][0]["side"] is None, saved
         webdriver(endpoint + "/execute/sync", {"script":
             "let s=document.getElementById('sequence');s.value='curl_1';s.dispatchEvent(new Event('change'))", "args": []})
         for _ in range(100):
@@ -318,7 +318,7 @@ def main():
             time.sleep(0.1)
         restored = webdriver(endpoint + "/execute/sync", {"script":
             "return document.querySelector('.annotation-caption')?.textContent", "args": []})
-        assert "frame 10–21" in restored and "side: left" in restored, restored
+        assert "frame 10–21" in restored, restored
         handle = webdriver(endpoint + "/execute/sync", {"script":
             "let r=document.querySelector('.annotation-handle.end').getBoundingClientRect();"
             "return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}", "args": []})
@@ -370,10 +370,11 @@ def main():
             "let field=document.getElementById('editParents'),choice=field.querySelector('label');"
             "let result={visible:!field.hidden,text:choice.textContent,checked:choice.querySelector('input').checked};"
             "choice.click();document.getElementById('editRep').value='2';"
+            "document.getElementById('editSide').value='left';"
             "document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
         assert mid_parent["visible"] and "#1 curl" in mid_parent["text"] and not mid_parent["checked"], mid_parent
         go_to(32)
-        assert click_label("Low", "move · flexion")
+        assert click_label("Low", "flexion")
         go_to(34)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         low_parent = webdriver(endpoint + "/execute/sync", {"script":
@@ -400,9 +401,10 @@ def main():
         assert len(saved["annotations"]) == 4, saved
         assert saved["annotations"][0]["end_frame"] > 21, saved
         assert saved["annotations"][1]["rep"] == 2 and saved["annotations"][1]["parents"] == [1], saved
+        assert saved["annotations"][1]["side"] == "left", saved
         assert saved["annotations"][2]["parents"] == [2] and saved["annotations"][2]["external_load"] == "both", saved
         assert saved["annotations"][2]["contact_points"] == "both" and saved["annotations"][2]["target"] == "hand", saved
-        assert saved["annotations"][2]["phase"] == "flexion", saved
+        assert saved["annotations"][2]["phase"] is None, saved
         assert saved["annotations"][3]["level"] == "aux" and saved["annotations"][3]["t_start"] == saved["annotations"][3]["t_end"], saved
         reopened_parent = webdriver(endpoint + "/execute/sync", {"script":
             "document.querySelector('[data-record-id=\"2\"] .annotation-caption').click();"
@@ -416,7 +418,7 @@ def main():
         go_to(18)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         go_to(32)
-        assert click_label("Low", "move · extension")
+        assert click_label("Low", "flexion")
         go_to(35)
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         grouped = webdriver(endpoint + "/execute/sync", {"script":
@@ -436,7 +438,7 @@ def main():
             "trackHeight:document.getElementById('annotationRows').getBoundingClientRect().height}",
             "args": []})
         assert grouped["inside"] and grouped["rows"] == 4, grouped
-        assert grouped["names"] == ["high · curl", "mid · curl_cycle", "low · move", "aux · sync"], grouped
+        assert grouped["names"] == ["high · curl", "mid · curl_cycle", "low · flexion", "aux · sync"], grouped
         assert grouped["counts"] == [2, 1, 2, 1], grouped
         assert len(set(grouped["highY"])) == 2 and len(set(grouped["lowY"])) == 2, grouped
         assert all(abs(x - grouped["rulerX"]) < 1 for x in grouped["tracksX"]), grouped
@@ -505,6 +507,65 @@ def main():
             "return {chips:document.querySelectorAll('.label-chip').length,"
             "text:document.getElementById('palette').textContent}", "args": []})
         assert no_labels["chips"] == 0 and "Nessuna label" in no_labels["text"], no_labels
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='throwing_0';s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"]:
+                break
+            time.sleep(0.1)
+        assert state["ready"] and not state["busy"], state
+        assert click_label("High", "throwing_catching")
+        go_to(80)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        go_to(5)
+        assert click_label("Mid", "pass_cycle")
+        go_to(70)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        go_to(10)
+        assert click_label("Low", "ball_throw")
+        go_to(60)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        go_to(20)
+        assert click_label("Atomic", "move · wind_up")
+        go_to(25)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        atomic = webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelector('[data-record-id=\"4\"] .annotation-caption').click();"
+            "let parent=document.querySelector('#parentChoices label');"
+            "let result={parent:parent.textContent,load:!document.getElementById('editLoad').closest('label').hidden,"
+            "target:!document.getElementById('editTarget').closest('label').hidden,"
+            "phase:document.getElementById('editPhase').value};"
+            "parent.click();document.getElementById('editLoad').value='both';"
+            "document.getElementById('editContact').value='both';"
+            "document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
+        assert "#3 ball_throw" in atomic["parent"] and atomic["load"] and not atomic["target"], atomic
+        assert atomic["phase"] == "wind_up", atomic
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            path = ViewerTest.root / "s5/label/throwing_0.json"
+            if path.exists() and len(json.loads(path.read_text())["annotations"]) == 4:
+                break
+            time.sleep(0.1)
+        records = json.loads(path.read_text())["annotations"]
+        assert records[3]["level"] == "atomic" and records[3]["phase"] == "wind_up", records
+        assert records[3]["parents"] == [3] and records[3]["external_load"] == "both", records
+        old_path = ViewerTest.root / "s5/label/curl_1.json"
+        old = {"schema_version": "0.1", "subject": "s5", "sequence": "curl_1", "fps": 30,
+               "annotations": [{**records[0], "label": "curl"}]}
+        old_path.parent.mkdir(exist_ok=True)
+        old_path.write_text(json.dumps(old))
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='curl_1';s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"] and "migrazione manuale" in state["status"]:
+                break
+            time.sleep(0.1)
+        assert state["ready"] and not state["busy"] and "migrazione manuale" in state["status"], state
+        assert webdriver(endpoint + "/execute/sync", {"script":
+            "return document.querySelectorAll('.label-chip').length===0 && document.getElementById('saveLabels').disabled", "args": []})
+        assert json.loads(old_path.read_text()) == old
         print("Video, annotazioni e riapertura nel browser: OK")
     finally:
         if session:

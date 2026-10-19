@@ -76,6 +76,7 @@
     .annotation-bar { position: absolute; z-index: 2; height: 24px; min-width: 20px; border: 1px solid #a3d5ed; border-radius: 3px; background: #3d96c3; box-shadow: 0 1px 3px #0009; }
     .annotation-bar[data-level=mid] { background: #cda668; }
     .annotation-bar[data-level=low] { background: #8fc88f; }
+    .annotation-bar[data-level=atomic] { background: #86b9d9; }
     .annotation-bar[data-level=aux] { background: #b48ad8; }
     .annotation-bar.pending { background-image: repeating-linear-gradient(45deg, #0000 0 5px, #ffffff55 5px 9px); }
     .annotation-caption { display: block; width: 100%; height: 100%; padding: 1px 12px; overflow: hidden; border: 0; border-radius: 0; background: none; color: #14212b; font-size: .72rem; font-weight: 600; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
@@ -174,8 +175,8 @@
       <label class="for-mid">Ripetizione<input id="editRep" type="number" min="1" step="1"></label>
       <label class="for-side">Lato<select id="editSide"></select></label>
       <label class="for-direction">Direzione<select id="editDirection"></select></label>
-      <label class="for-low">Carico esterno<select id="editLoad"></select></label>
-      <label class="for-low">Punti di contatto<select id="editContact"></select></label>
+      <label class="for-load">Carico esterno<select id="editLoad"></select></label>
+      <label class="for-load">Punti di contatto<select id="editContact"></select></label>
       <label class="for-phase">Fase<select id="editPhase"></select></label>
       <label class="for-low">Target<input id="editTarget" maxlength="200"></label>
       <fieldset id="editParents" class="for-parent edit-wide"><legend>Label genitore</legend><div id="parentChoices"></div></fieldset>
@@ -223,6 +224,7 @@
   const displayed = Object.fromEntries(cameras.map(camera => [camera, null]));
   const held = new Set();
   let labelSchema = null;
+  let labelProblem = '';
   let annotations = [];
   let revision = null;
   let dirty = false;
@@ -248,7 +250,7 @@
   function markDirty() {
     dirty = true;
     editVersion++;
-    saveButton.disabled = saving || !frames || pendingId !== null || !labelSchema?.task;
+    saveButton.disabled = saving || !frames || pendingId !== null || !labelSchema?.task || !!labelProblem;
   }
 
   function syncTimes(record) {
@@ -261,6 +263,9 @@
     const attributes = ['phase', 'rep', 'side', 'direction', 'external_load', 'contact_points', 'target', 'note']
       .filter(name => record[name] !== null && record[name] !== '')
       .map(name => `${name}: ${name === 'note' ? record[name].slice(0, 80) : record[name]}`);
+    if (record.level === 'high') attributes.unshift(...Object.entries(labelSchema?.task_attributes || {})
+      .filter(([name, value]) => ['variant', 'kg', 'load_class'].includes(name) && value !== null)
+      .map(([name, value]) => `${name}: ${value}`));
     const duration = record.level === 'aux' && record.label === 'sync'
       ? `frame ${record.start_frame}`
       : `frame ${record.start_frame}–${record.end_frame} · ${record.end_frame - record.start_frame + 1} frame`;
@@ -390,11 +395,12 @@
   function renderPalette() {
     labelTooltip.hidden = true;
     palette.replaceChildren();
+    if (labelProblem) { palette.textContent = labelProblem; return; }
     if (!labelSchema?.task) {
       palette.textContent = 'Nessuna label definita nello schema per questa sequenza.';
       return;
     }
-    for (const [level, title] of [['high', 'High'], ['mid', 'Mid'], ['low', 'Low'], ['aux', 'Aux']]) {
+    for (const [level, title] of [['high', 'High'], ['mid', 'Mid'], ['low', 'Low'], ['atomic', 'Atomic'], ['aux', 'Aux']]) {
       const group = document.createElement('div');
       group.className = 'palette-group';
       const heading = document.createElement('strong');
@@ -447,7 +453,7 @@
   }
 
   async function addChoice(choice) {
-    if (!frames || !labelSchema?.choices.some(item => item.level === choice.level && item.label === choice.label
+    if (labelProblem || !frames || !labelSchema?.choices.some(item => item.level === choice.level && item.label === choice.label
         && item.phase === choice.phase)) return;
     if (pendingId !== null) { message('Chiudi prima l’intervallo corrente con End.', 'warn'); return; }
     if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
@@ -498,16 +504,22 @@
     for (const [field, id] of [['side', 'editSide'], ['direction', 'editDirection'],
                                ['external_load', 'editLoad'], ['contact_points', 'editContact']])
       fillSelect(document.getElementById(id), labelSchema.attribute_values[field], record[field]);
-    document.querySelectorAll('.for-mid').forEach(item => item.hidden = !['mid', 'low'].includes(record.level));
+    document.querySelectorAll('.for-mid').forEach(item => item.hidden = record.level !== 'mid');
     document.querySelectorAll('.for-low').forEach(item => item.hidden = record.level !== 'low');
+    document.querySelectorAll('.for-load').forEach(item => item.hidden = record.level !== labelSchema.lowest_level);
     const phases = [...new Set(labelSchema.choices.filter(item => item.level === record.level
       && item.label === record.label && item.phase).map(item => item.phase))];
     document.querySelectorAll('.for-phase').forEach(item => item.hidden = !phases.length);
-    fillSelect(document.getElementById('editPhase'), phases, record.phase);
-    document.querySelectorAll('.for-side').forEach(item => item.hidden = !labelSchema.annotated_attributes.includes('side'));
-    document.querySelectorAll('.for-direction').forEach(item => item.hidden = !labelSchema.annotated_attributes.includes('direction'));
-    document.querySelectorAll('.for-parent').forEach(item => item.hidden = !['mid', 'low'].includes(record.level));
-    const parentLevel = record.level === 'mid' ? 'high' : 'mid';
+    const phaseSelect = document.getElementById('editPhase');
+    fillSelect(phaseSelect, phases, record.phase);
+    phaseSelect.required = phases.length > 0 && !labelSchema.choices.some(item => item.level === record.level
+      && item.label === record.label && item.phase === null);
+    document.querySelectorAll('.for-side').forEach(item => item.hidden = record.level !== 'mid' || !labelSchema.annotated_attributes.includes('side'));
+    document.querySelectorAll('.for-direction').forEach(item => item.hidden = record.level !== 'mid' || !labelSchema.annotated_attributes.includes('direction'));
+    document.querySelectorAll('.for-parent').forEach(item => item.hidden = !['mid', 'low', 'atomic'].includes(record.level));
+    const levels = ['high', 'mid', 'low', 'atomic'];
+    const parentLevel = levels.slice(0, levels.indexOf(record.level)).reverse()
+      .find(level => annotations.some(item => item.level === level));
     const parentChoices = document.getElementById('parentChoices');
     const candidates = annotations.filter(item => item.level === parentLevel)
       .sort((a, b) => a.start_frame - b.start_frame || a.id - b.id);
@@ -725,6 +737,7 @@
     cancelSeek();
     frames = 0;
     labelSchema = null;
+    labelProblem = '';
     annotations = [];
     revision = null;
     dirty = false;
@@ -747,8 +760,11 @@
     message('Preparazione dei video… La prima apertura può richiedere alcuni secondi.');
     try {
       const query = `subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`;
-      const [data, schema, saved] = await Promise.all([
-        getJson(`/api/sequence?${query}`), getJson(`/api/schema?${query}`), getJson(`/api/labels?${query}`)]);
+      const [data, schema, labelResponse] = await Promise.all([
+        getJson(`/api/sequence?${query}`), getJson(`/api/schema?${query}`), fetch(`/api/labels?${query}`)]);
+      const saved = await labelResponse.json();
+      if (!labelResponse.ok && labelResponse.status !== 409)
+        throw new Error(saved.error || `HTTP ${labelResponse.status}`);
       if (turn !== loading) return;
       const metadata = cameras.map(camera => data.metadata[camera]);
       if (metadata.some(item => item.codec !== 'h264' || Math.abs(item.fps - 30) > 0.01 || item.frames < 1))
@@ -757,8 +773,9 @@
         throw new Error('Questo browser non permette di verificare il frame mostrato. Usa una versione aggiornata di Chrome, Edge o Firefox.');
       frames = Math.min(...metadata.map(item => item.frames));
       labelSchema = schema;
-      annotations = saved.data.annotations;
-      revision = saved.revision;
+      labelProblem = labelResponse.ok ? '' : saved.error;
+      annotations = labelResponse.ok ? saved.data.annotations : [];
+      revision = labelResponse.ok ? saved.revision : null;
       renderPalette();
       renderAnnotations();
       await Promise.all(cameras.map(camera => new Promise((resolve, reject) => {
@@ -774,9 +791,9 @@
       controls.forEach(control => control.disabled = false);
       seek(0);
       const counts = metadata.map(item => item.frames);
-      message(new Set(counts).size > 1
+      message(labelProblem || (new Set(counts).size > 1
         ? `Lunghezze diverse: body ${counts[0]}, esterna ${counts[1]}, Aria ${counts[2]} frame. La timeline si ferma al più corto.`
-        : '', new Set(counts).size > 1 ? 'warn' : '');
+        : ''), labelProblem || new Set(counts).size > 1 ? 'warn' : '');
     } catch (error) {
       if (turn === loading) {
         frames = 0;
@@ -787,7 +804,7 @@
   }
 
   async function saveLabels() {
-    if (!dirty || saving || pendingId !== null || !frames || !labelSchema?.task) return;
+    if (!dirty || saving || pendingId !== null || !frames || !labelSchema?.task || labelProblem) return;
     saving = true;
     saveButton.disabled = true;
     const turn = loading;
@@ -889,18 +906,18 @@
     }
     record.start_frame = start;
     record.end_frame = end;
-    record.rep = ['mid', 'low'].includes(record.level) && document.getElementById('editRep').value
+    record.rep = record.level === 'mid' && document.getElementById('editRep').value
       ? Number(document.getElementById('editRep').value) : null;
-    record.side = labelSchema.annotated_attributes.includes('side')
+    record.side = record.level === 'mid' && labelSchema.annotated_attributes.includes('side')
       ? document.getElementById('editSide').value || null : null;
-    record.direction = labelSchema.annotated_attributes.includes('direction')
+    record.direction = record.level === 'mid' && labelSchema.annotated_attributes.includes('direction')
       ? document.getElementById('editDirection').value || null : null;
-    record.external_load = record.level === 'low' ? document.getElementById('editLoad').value || null : null;
-    record.contact_points = record.level === 'low' ? document.getElementById('editContact').value || null : null;
+    record.external_load = record.level === labelSchema.lowest_level ? document.getElementById('editLoad').value || null : null;
+    record.contact_points = record.level === labelSchema.lowest_level ? document.getElementById('editContact').value || null : null;
     record.phase = document.querySelector('.for-phase').hidden ? null : document.getElementById('editPhase').value || null;
     record.target = record.level === 'low' ? document.getElementById('editTarget').value || null : null;
     record.note = document.getElementById('editNote').value || null;
-    record.parents = ['mid', 'low'].includes(record.level)
+    record.parents = ['mid', 'low', 'atomic'].includes(record.level)
       ? [...document.querySelectorAll('#parentChoices input:checked')].map(input => Number(input.value)) : [];
     syncTimes(record);
     editDialog.close();

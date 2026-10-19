@@ -29,7 +29,7 @@ ssh -L 8765:127.0.0.1:8765 utente@server
 Poi aprire lo stesso indirizzo nel browser locale. La porta rimane privata
 all'host che esegue il server. `--root` permette di usare un'altra cartella
 con la stessa struttura; `--port` cambia la porta. Riavviare il server se
-vengono aggiunte nuove registrazioni.
+vengono aggiunte nuove registrazioni o cambia `label_schema.json`.
 
 La timeline usa i frame a 30 Hz. Alla selezione l'app controlla codec,
 frequenza e numero di frame; se i video hanno lunghezze diverse, segnala la
@@ -55,11 +55,11 @@ istanti reali delle camere dipende dalla sincronizzazione dei file originali.
 
 Aprire **Label** e cliccare una voce per iniziare l'annotazione al frame
 visualizzato. Passando il mouse o usando la tastiera su una voce compare la
-definizione presente in `label_schema.json`; per le label high e mid non ancora
-definite nello schema compare un avviso. Le annotazioni sono comuni alle tre camere. Per una label con durata,
+definizione presente in `label_schema.json`; per le label mid e low, prive di
+definizione nello schema 0.2, compare un avviso. Le annotazioni sono comuni alle tre camere. Per una label con durata,
 raggiungere il frame finale e premere **End**; `sync` è un evento puntuale e si
-chiude subito. Le azioni con fasi diverse (per esempio `move · flexion` e
-`move · extension`) sono scelte distinte. La timeline ha righello in frame e
+chiude subito. Le azioni con fasi diverse (per esempio `move · wind_up` e
+`hold · waiting`) sono scelte distinte. La timeline ha righello in frame e
 testina verticale; sotto il righello, ogni livello e nome di label ha una
 traccia. Il righello mostra un segno ogni 10 frame e il numero ogni 50;
 le linee corrispondenti attraversano tutte le tracce. I segmenti della stessa label condividono la traccia, anche se hanno
@@ -74,6 +74,11 @@ eventuali label genitore tramite caselle da spuntare, nota, o per eliminare l'an
 riga ci sono più annotazioni, il clic sul nome apre una scelta per frame. La palette
 offre solo le label previste dal task della sequenza. `static_0` e `static_1`
 non hanno ancora un task in `label_schema.json`, quindi non offrono label.
+Lo schema 0.2 aggiunge il livello `atomic` per i task che lo prevedono.
+`rep`, `side` e `direction` si impostano sul livello mid; `target` sul low;
+`external_load` e `contact_points` sul livello più basso del task (`atomic`,
+oppure `low` o `mid`). `variant`, `kg` e `load_class` sono fissati dal task e
+compaiono sulla traccia high quando valorizzati.
 
 **Salva** scrive `s*/label/<nome_sequenza>.json` in modo atomico. Le label
 salvate sono caricate quando si riapre la sequenza. Se il file è stato
@@ -84,10 +89,14 @@ modifiche non salvate. Non è possibile salvare un intervallo ancora aperto.
 
 Il JSON contiene `schema_version`, `subject`, `sequence`, `fps` e
 `annotations`. Ogni annotazione conserva i campi del template dello schema,
-più `start_frame`, `end_frame`, `direction` e `phase`. Gli indici dei frame iniziano da
+più `start_frame`, `end_frame` e `direction`. Gli indici dei frame iniziano da
 **1** e gli estremi dell'intervallo sono inclusivi. `t_start` è l'istante
 iniziale del primo frame; `t_end` è il confine subito dopo l'ultimo frame
 incluso. Per `sync`, `start_frame = end_frame` e `t_start = t_end`.
+I JSON 0.1 vuoti si aprono come 0.2 e vengono aggiornati solo al prossimo
+salvataggio. I JSON 0.1 con annotazioni richiedono una migrazione manuale:
+alcune label hanno cambiato nome e livello. I video restano visibili, ma
+l'editing è bloccato e il file non viene modificato.
 
 Quando si seleziona una sequenza, il server crea versioni H.264 con un
 fotogramma chiave per ogni frame e le tiene in RAM. La camera Aria viene

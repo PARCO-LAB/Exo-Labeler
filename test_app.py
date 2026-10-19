@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from app import ViewerHandler, discover, label_choices, proxy
+from app import LABEL_SCHEMA, ViewerHandler, discover, label_choices, proxy, validate_labels
 
 
 class ViewerTest(unittest.TestCase):
@@ -26,11 +26,13 @@ class ViewerTest(unittest.TestCase):
         ], check=True)
         shutil.copyfile(sample, body / "s5_curl_0_depth.mp4")
         shutil.copyfile(sample, body / "s5_curl_1_rgb.mp4")
+        shutil.copyfile(sample, body / "s5_throwing_0_rgb.mp4")
         for camera in ("camera_env", "camera_aria"):
             directory = cls.root / "s5/aligned" / camera
             directory.mkdir()
             shutil.copyfile(sample, directory / sample.name)
             shutil.copyfile(sample, directory / "s5_curl_1_rgb.mp4")
+            shutil.copyfile(sample, directory / "s5_throwing_0_rgb.mp4")
             shutil.copyfile(sample, directory / "s5_static_0_rgb.mp4")
         shutil.copyfile(sample, body / "s5_static_0_rgb.mp4")
         incomplete = cls.root / "s6/aligned/camera_body"
@@ -59,7 +61,7 @@ class ViewerTest(unittest.TestCase):
 
     def test_discovery_and_metadata(self):
         with self.request("/api/catalog") as response:
-            self.assertEqual(json.load(response), {"s5": ["curl_0", "curl_1", "static_0"]})
+            self.assertEqual(json.load(response), {"s5": ["curl_0", "curl_1", "static_0", "throwing_0"]})
         with self.request("/api/sequence?subject=s5&sequence=curl_0") as response:
             data = json.load(response)
         self.assertEqual(set(data["videos"]), {"body", "external", "aria"})
@@ -72,7 +74,7 @@ class ViewerTest(unittest.TestCase):
     def test_annotation_schema_and_save(self):
         task, choices = label_choices("drilling_vertical_0")
         self.assertEqual(task["trial_id"], "drilling_vertical")
-        self.assertIn(("low", "pointing"), {(choice["level"], choice["label"]) for choice in choices})
+        self.assertIn(("atomic", "pointing"), {(choice["level"], choice["label"]) for choice in choices})
         with self.request("/api/schema?subject=s5&sequence=static_0") as response:
             self.assertEqual(json.load(response)["choices"], [])
         with self.request("/api/schema?subject=s5&sequence=curl_0") as response:
@@ -128,8 +130,9 @@ class ViewerTest(unittest.TestCase):
         self.assertEqual(error.exception.code, 400)
         self.assertEqual(json.loads(path.read_text()), document)
         curl_choices = label_choices("curl_0")[1]
-        self.assertEqual({item["phase"] for item in curl_choices if item["label"] == "move"},
+        self.assertEqual({item["label"] for item in curl_choices if item["level"] == "low"},
                          {"flexion", "extension"})
+        self.assertTrue(next(item for item in curl_choices if item["label"] == "curl")["definition"])
         legacy = {**document, "sequence": "curl_1", "annotations": [{**document["annotations"][0]}]}
         legacy["annotations"][0].pop("phase")
         (self.root / "s5/label/curl_1.json").write_text(json.dumps(legacy))
@@ -137,6 +140,73 @@ class ViewerTest(unittest.TestCase):
             upgraded = json.load(response)
         self.assertIsNone(upgraded["data"]["annotations"][0]["phase"])
         self.assertIsNotNone(upgraded["revision"])
+        old_empty = {**document, "schema_version": "0.1", "sequence": "curl_1", "annotations": []}
+        (self.root / "s5/label/curl_1.json").write_text(json.dumps(old_empty))
+        with self.request("/api/labels?subject=s5&sequence=curl_1") as response:
+            upgraded = json.load(response)
+        self.assertEqual(upgraded["data"]["schema_version"], "0.2")
+        self.assertEqual(json.loads((self.root / "s5/label/curl_1.json").read_text()), old_empty)
+        old_nonempty = {**old_empty, "annotations": [document["annotations"][0]]}
+        (self.root / "s5/label/curl_1.json").write_text(json.dumps(old_nonempty))
+        with self.assertRaises(HTTPError) as error:
+            self.request("/api/labels?subject=s5&sequence=curl_1")
+        self.assertEqual(error.exception.code, 409)
+        self.assertEqual(json.loads((self.root / "s5/label/curl_1.json").read_text()), old_nonempty)
+
+    def test_atomic_levels_and_attribute_placement(self):
+        url = "/api/labels?subject=s5&sequence=throwing_0"
+        with self.request("/api/schema?subject=s5&sequence=throwing_0") as response:
+            schema = json.load(response)
+        self.assertEqual(schema["lowest_level"], "atomic")
+        self.assertIn(("atomic", "move", "wind_up"),
+                      {(item["level"], item["label"], item["phase"]) for item in schema["choices"]})
+        with self.request(url) as response:
+            document = json.load(response)["data"]
+        base = {"parents": [], "rep": None, "side": None, "direction": None, "phase": None,
+                "external_load": None, "contact_points": None, "target": None, "note": None}
+        document["annotations"] = [
+            {**base, "id": 1, "level": "high", "label": "throwing_catching", "start_frame": 1,
+             "end_frame": 60, "t_start": 0, "t_end": 2},
+            {**base, "id": 2, "level": "mid", "label": "pass_cycle", "parents": [1], "rep": 1,
+             "start_frame": 1, "end_frame": 60, "t_start": 0, "t_end": 2},
+            {**base, "id": 3, "level": "low", "label": "ball_throw", "parents": [2],
+             "start_frame": 5, "end_frame": 30, "t_start": 4 / 30, "t_end": 1},
+            {**base, "id": 4, "level": "atomic", "label": "move", "phase": "wind_up", "parents": [3],
+             "external_load": "both", "contact_points": "both", "start_frame": 5,
+             "end_frame": 10, "t_start": 4 / 30, "t_end": 10 / 30},
+        ]
+        with self.request(url, method="POST", data={"revision": None, "data": document}) as response:
+            revision = json.load(response)["revision"]
+        with self.request(url) as response:
+            self.assertEqual(json.load(response)["data"], document)
+        for index, changes in [(3, {"parents": [2]}), (2, {"external_load": "both"}),
+                               (3, {"phase": "waiting"}), (3, {"phase": None}), (1, {"side": "left"})]:
+            bad = json.loads(json.dumps(document))
+            bad["annotations"][index].update(changes)
+            with self.assertRaises(HTTPError) as error:
+                self.request(url, method="POST", data={"revision": revision, "data": bad})
+            self.assertEqual(error.exception.code, 400)
+
+    def test_every_task_matches_new_schema(self):
+        for task in LABEL_SCHEMA["tasks"]:
+            with self.subTest(task=task["trial_id"]):
+                choices = label_choices(task["trial_id"] + "_0")[1]
+                expected = {("high", task["high"]["label"]),
+                            ("mid", task["high"]["mid"]["label"])}
+                for low in task["high"]["mid"].get("low", []):
+                    expected.add(("low", low["label"]))
+                    expected.update(("atomic", item["label"]) for item in low.get("atomic", []))
+                self.assertEqual({(item["level"], item["label"]) for item in choices if item["level"] != "aux"}, expected)
+                self.assertTrue(all(item["definition"] for item in choices
+                                    if item["level"] in ("high", "atomic", "aux")))
+        files = self.server.recordings["s5"]["curl_0"]
+        no_low = {"schema_version": LABEL_SCHEMA["schema_version"], "subject": "s5",
+                  "sequence": "infinity_tracing_0", "fps": 30, "annotations": [{
+                      "id": 1, "level": "mid", "label": "figure_eight", "phase": None,
+                      "start_frame": 1, "end_frame": 30, "t_start": 0, "t_end": 1,
+                      "parents": [], "rep": 1, "side": "left", "direction": None,
+                      "external_load": "none", "contact_points": "none", "target": None, "note": None}]}
+        self.assertEqual(validate_labels(no_low, "s5", "infinity_tracing_0", files), no_low)
 
     def test_media_ranges_and_path_validation(self):
         path = "/media/s5/curl_0/body"
