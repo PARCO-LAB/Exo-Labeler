@@ -54,7 +54,9 @@ possono presentare frame vicini in istanti diversi. La corrispondenza fra gli
 istanti reali delle camere dipende dalla sincronizzazione dei file originali.
 
 Aprire **Label** e cliccare una voce per iniziare l'annotazione al frame
-visualizzato. Le annotazioni sono comuni alle tre camere. Per una label con durata,
+visualizzato. Passando il mouse o usando la tastiera su una voce compare la
+definizione presente in `label_schema.json`; per le label high e mid non ancora
+definite nello schema compare un avviso. Le annotazioni sono comuni alle tre camere. Per una label con durata,
 raggiungere il frame finale e premere **End**; `sync` è un evento puntuale e si
 chiude subito. Le azioni con fasi diverse (per esempio `move · flexion` e
 `move · extension`) sono scelte distinte. La timeline ha righello in frame e

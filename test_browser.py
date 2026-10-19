@@ -84,6 +84,33 @@ def main():
         assert chrome["trackColor"] == chrome["rulerColor"], chrome
         assert chrome["compactAbsent"] and chrome["buttonHeight"] <= 28, chrome
         assert chrome["titles"] == ["Body", "Esterna", "Aria"] and chrome["titleFont"] < 13, chrome
+        def label_center(level, label):
+            return webdriver(endpoint + "/execute/sync", {"script":
+                "document.getElementById('labelsPanel').open=true;"
+                "let chip=[...document.querySelectorAll('.label-chip')].find(x=>x.textContent===arguments[1]"
+                "&&x.parentElement.querySelector('strong').textContent===arguments[0]);"
+                "if(!chip)return null;let r=chip.getBoundingClientRect();"
+                "return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}", "args": [level, label]})
+        for level, label, expected in [("Low", "move · flexion", "Free segmental movement"),
+                                       ("High", "curl", "Definizione non presente nello schema")]:
+            center = label_center(level, label)
+            assert center, (level, label)
+            webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
+                "parameters": {"pointerType": "mouse"}, "actions": [
+                    {"type": "pointerMove", "duration": 0, "x": center["x"], "y": center["y"]}]}]})
+            tooltip = webdriver(endpoint + "/execute/sync", {"script":
+                "let t=document.getElementById('labelTooltip'),r=t.getBoundingClientRect();"
+                "return {visible:!t.hidden,text:t.textContent,right:r.right,bottom:r.bottom,"
+                "width:innerWidth,height:innerHeight}", "args": []})
+            assert tooltip["visible"] and expected in tooltip["text"], tooltip
+            assert tooltip["right"] <= tooltip["width"] and tooltip["bottom"] <= tooltip["height"], tooltip
+        focus_tip = webdriver(endpoint + "/execute/sync", {"script":
+            "let chip=[...document.querySelectorAll('.label-chip')].find(x=>x.textContent==='sync');"
+            "chip.focus();let t=document.getElementById('labelTooltip');"
+            "return {visible:!t.hidden,text:t.textContent,description:chip.getAttribute('aria-description')}" , "args": []})
+        assert focus_tip["visible"] and "align sensor clocks" in focus_tip["text"], focus_tip
+        assert focus_tip["description"] == focus_tip["text"], focus_tip
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('labelsPanel').open=false", "args": []})
         initial = state["hashes"][0]
         webdriver(endpoint + "/execute/sync", {"script":
             "let s=document.getElementById('slider');for(const n of [2,7,4,8])"
