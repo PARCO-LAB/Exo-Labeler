@@ -1,10 +1,10 @@
 {
-  "schema_version": "0.2",
+  "schema_version": "0.3",
   "description": "Hierarchical label schema for multimodal recordings (Vicon, Aria glasses, EMG, IMU, body-mounted camera, external camera).",
   "conventions": {
     "levels": {
       "high": "Whole set of repetitions of a task.",
-      "mid": "One complete repetition of the task (e.g. floor -> shelf -> floor). '_cycle' / movement names = single movement from start position back to start position; '_round' = full pass through multiple targets.",
+      "mid": "One complete repetition of the task (e.g. floor -> shelf -> floor). '_cycle' / movement names = single movement from start position back to start position; '_round' = full pass through multiple locations.",
       "low": "Functional phase inside a repetition (e.g. floor -> shelf).",
       "atomic": "Elementary actions inside a phase (reach, grasp, transport, ...)."
     },
@@ -16,39 +16,175 @@
     },
     "overlap_policy": "Labels can overlap in time at every level, both with labels of the same type and with different labels. A task normally has one high-level label, but additional overlapping high-level labels are allowed.",
     "contiguity_policy": "Child labels do not have to be contiguous or cover the full parent interval. Uncovered time can stay unlabelled.",
-    "typical_order": "The order of 'low' and 'atomic' entries in each task is the typical order, not a strict sequence: labels can overlap, be skipped or leave gaps. 'repeat' marks entries repeated once per target.",
+    "typical_order": "The order of 'low' and 'atomic' entries in each task is the typical order, not a strict sequence: labels can overlap, be skipped or leave gaps. 'repeat' marks entries repeated once per location.",
+    "hand_attributes": {
+      "applies_to": [
+        "side",
+        "external_load",
+        "contact_points"
+      ],
+      "levels": "Can be annotated at every level (high, mid, low, atomic).",
+      "atomic": "State of the hands during the action.",
+      "higher_levels": "Union of the hands involved at any time during the interval (e.g. a lifting_cycle where the object is grasped with the right hand to lift it and with the left hand to lower it has side = both).",
+      "consistency": "A value at a higher level must equal the union of the values of its children, when children are annotated.",
+      "task_values": "The values given at each level in the task entries are the expected values, derived as union of the lower levels."
+    },
     "attribute_placement": {
-      "variant, kg, load_class": "High level (fixed by protocol, inherited by all children).",
-      "rep, side, direction": "Mid level (inherited by low and atomic).",
-      "target": "Low level (inherited by atomic).",
-      "external_load, contact_points": "Lowest annotated level (atomic when present, otherwise low or mid), since they change within a repetition."
+      "variant, load_class, kg": "High level (fixed by protocol, inherited by all children).",
+      "target": "High level by default (fixed by protocol, inherited); can be overridden at lower levels. Closed vocabulary.",
+      "rep": "Mid level (inherited by low and atomic).",
+      "side, direction": "Mid level by default (inherited); can be refined at low and atomic level.",
+      "location": "Low level (inherited by atomic). Closed vocabulary.",
+      "external_load, contact_points": "Every level, see 'hand_attributes'."
     },
     "placeholders": {
-      "side": "Resolved with the 'side' attribute annotated for the repetition (left or right)."
+      "side": "In 'external_load' and 'contact_points', resolved with the 'side' value of the same interval (left, right or both)."
     },
     "rep_numbering": "Mid-level repetitions are numbered 1, 2, 3, ... in order of execution. Numbering restarts per side/direction when reps are counted per side/direction. A redone repetition takes the next number; the failed one is marked 'invalid'."
   },
   "attribute_values": {
-    "side": [
-      "left",
-      "right"
-    ],
-    "direction": [
-      "left",
-      "right"
-    ],
-    "external_load": [
-      "none",
-      "left",
-      "right",
-      "both"
-    ],
-    "contact_points": [
-      "none",
-      "left",
-      "right",
-      "both"
-    ]
+    "side": {
+      "values": [
+        "left",
+        "right",
+        "both"
+      ],
+      "definition": "Hand(s) used to handle the target, or the active limb/side for tasks without an object. Allowed values per task in 'side_values'."
+    },
+    "direction": {
+      "values": [
+        "left",
+        "right"
+      ],
+      "definition": "Direction of trunk rotation."
+    },
+    "external_load": {
+      "values": [
+        "none",
+        "left",
+        "right",
+        "both"
+      ],
+      "definition": "Hand(s) supporting the mass of the target."
+    },
+    "contact_points": {
+      "values": [
+        "none",
+        "left",
+        "right",
+        "both"
+      ],
+      "definition": "Hand(s) in contact with the target or with a body part used as support (e.g. thighs)."
+    },
+    "target": {
+      "definition": "Object the action is performed with or on.",
+      "values": [
+        {
+          "value": "light_bottle",
+          "description": "Empty water bottle",
+          "kg": 0.1
+        },
+        {
+          "value": "heavy_bottle",
+          "description": "Full water bottle",
+          "kg": 1.5
+        },
+        {
+          "value": "light_box",
+          "description": "Empty box",
+          "kg": null
+        },
+        {
+          "value": "heavy_box",
+          "description": "Loaded box",
+          "kg": 10
+        },
+        {
+          "value": "drill",
+          "description": "Cordless drill",
+          "kg": null
+        },
+        {
+          "value": "door",
+          "description": "Cabinet door of the rack (handle)",
+          "kg": null
+        },
+        {
+          "value": "medicine_ball",
+          "description": "Medicine ball",
+          "kg": 9
+        },
+        {
+          "value": "dumbbells",
+          "description": "Pair of dumbbells, one per hand",
+          "kg": 4
+        },
+        {
+          "value": "stool",
+          "description": "Stool used for sit-to-stand",
+          "kg": null
+        }
+      ]
+    },
+    "location": {
+      "definition": "Place the phase is directed to (destination).",
+      "values": [
+        {
+          "group": "glass",
+          "values": [
+            "g1",
+            "g2",
+            "g3",
+            "g4",
+            "g5",
+            "g6",
+            "g7",
+            "g8",
+            "g9"
+          ],
+          "description": "Glasses on the table, X pattern"
+        },
+        {
+          "group": "horizontal_drilling_target",
+          "values": [
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6",
+            "t7",
+            "t8",
+            "t9",
+            "t10",
+            "t11",
+            "t12",
+            "t13"
+          ],
+          "description": "Drilling targets on the table, X pattern"
+        },
+        {
+          "group": "vertical_drilling_target",
+          "pattern": "r<n>",
+          "n": null,
+          "description": "Drilling targets on the rack; fill n with the number of targets"
+        },
+        {
+          "group": "shelf",
+          "pattern": "shelf_<n>",
+          "n": null,
+          "description": "Rack shelves, numbered from the bottom; fill n with the number of shelves"
+        },
+        {
+          "group": "surface",
+          "values": [
+            "floor",
+            "table"
+          ],
+          "description": "Start/end surfaces for objects"
+        }
+      ]
+    }
   },
   "high_level_labels": [
     {
@@ -69,7 +205,7 @@
     },
     {
       "label": "drilling",
-      "definition": "Picking up a hand tool, simulating drilling on predefined targets on a horizontal surface or a vertical rack, and putting the tool back."
+      "definition": "Picking up a cordless drill, simulating drilling on predefined targets on a horizontal surface or a vertical rack, and putting the drill back."
     },
     {
       "label": "lifting",
@@ -89,43 +225,148 @@
     }
   ],
   "mid_level_labels": [
-    "posterior_reach",
-    "figure_eight",
-    "lateral_bend",
-    "trunk_twist",
-    "sit_stand_cycle",
-    "pouring_round",
-    "drilling_round",
-    "lifting_cycle",
-    "door_cycle",
-    "pass_cycle",
-    "curl_cycle"
+    {
+      "label": "posterior_reach",
+      "definition": "One attempt to bring the hands together behind the back, one arm over the shoulder and one from below, and back to the start position."
+    },
+    {
+      "label": "figure_eight",
+      "definition": "One complete figure-eight traced in the air with the extended arm."
+    },
+    {
+      "label": "lateral_bend",
+      "definition": "One lateral trunk bend sliding the hand down the thigh and return to upright."
+    },
+    {
+      "label": "trunk_twist",
+      "definition": "One trunk rotation to one side with arms raised and return to the start position."
+    },
+    {
+      "label": "sit_stand_cycle",
+      "definition": "One complete cycle from standing to sitting on the stool and back to standing."
+    },
+    {
+      "label": "pouring_round",
+      "definition": "One full pass: picking up the bottle, pouring into all glasses and putting the bottle back."
+    },
+    {
+      "label": "drilling_round",
+      "definition": "One full pass: picking up the tool, drilling all targets and putting the tool back."
+    },
+    {
+      "label": "lifting_cycle",
+      "definition": "One complete cycle: object moved from the floor to a shelf and back to the floor."
+    },
+    {
+      "label": "door_cycle",
+      "definition": "One complete cycle: opening the door and closing it."
+    },
+    {
+      "label": "pass_cycle",
+      "definition": "One complete exchange: throwing the ball to the assistant and catching it when thrown back."
+    },
+    {
+      "label": "curl_cycle",
+      "definition": "One elbow flexion-extension of the active arm."
+    }
   ],
   "low_level_labels": [
-    "reach_behind",
-    "hold_behind",
-    "return_from_behind",
-    "bend_down",
-    "bend_up",
-    "twist_out",
-    "twist_return",
-    "sit_down",
-    "seated",
-    "stand_up",
-    "bottle_pickup",
-    "pour_glass",
-    "bottle_putdown",
-    "tool_pickup",
-    "drill_target",
-    "tool_putdown",
-    "lift_to_shelf",
-    "lower_to_floor",
-    "door_opening",
-    "door_closing",
-    "ball_throw",
-    "ball_catch",
-    "flexion",
-    "extension"
+    {
+      "label": "reach_behind",
+      "definition": "Moving the arms from the start position to the position behind the back."
+    },
+    {
+      "label": "hold_behind",
+      "definition": "Maintaining the end position behind the back."
+    },
+    {
+      "label": "return_from_behind",
+      "definition": "Bringing the arms back from behind the back to the start position."
+    },
+    {
+      "label": "bend_down",
+      "definition": "Lateral trunk flexion, from upright to maximum bend."
+    },
+    {
+      "label": "bend_up",
+      "definition": "Return from maximum lateral bend to upright."
+    },
+    {
+      "label": "twist_out",
+      "definition": "Trunk rotation from the neutral position to maximum rotation."
+    },
+    {
+      "label": "twist_return",
+      "definition": "Return from maximum rotation to the neutral position."
+    },
+    {
+      "label": "sit_down",
+      "definition": "Descent from standing until stable sitting on the stool."
+    },
+    {
+      "label": "seated",
+      "definition": "Pause while sitting on the stool."
+    },
+    {
+      "label": "stand_up",
+      "definition": "Rising from the stool until upright standing."
+    },
+    {
+      "label": "bottle_pickup",
+      "definition": "Reaching for the bottle on the table and grasping it."
+    },
+    {
+      "label": "pour_glass",
+      "definition": "Moving the bottle to one glass and pouring into it."
+    },
+    {
+      "label": "bottle_putdown",
+      "definition": "Bringing the bottle back, placing it on the table and releasing it."
+    },
+    {
+      "label": "tool_pickup",
+      "definition": "Reaching for the tool and grasping it."
+    },
+    {
+      "label": "drill_target",
+      "definition": "Moving the tool to one target, aligning it and drilling."
+    },
+    {
+      "label": "tool_putdown",
+      "definition": "Bringing the tool back, placing it and releasing it."
+    },
+    {
+      "label": "lift_to_shelf",
+      "definition": "Picking up the object from the floor and placing it on a shelf."
+    },
+    {
+      "label": "lower_to_floor",
+      "definition": "Picking up the object from the shelf and placing it on the floor."
+    },
+    {
+      "label": "door_opening",
+      "definition": "Grasping the handle and pulling the door open."
+    },
+    {
+      "label": "door_closing",
+      "definition": "Grasping the handle and pushing the door closed."
+    },
+    {
+      "label": "ball_throw",
+      "definition": "Bringing the ball to the chest and throwing it to the assistant."
+    },
+    {
+      "label": "ball_catch",
+      "definition": "Waiting for the ball and catching it."
+    },
+    {
+      "label": "flexion",
+      "definition": "Elbow flexion lifting the dumbbell (concentric phase)."
+    },
+    {
+      "label": "extension",
+      "definition": "Elbow extension lowering the dumbbell (eccentric phase)."
+    }
   ],
   "atomic_labels": [
     {
@@ -142,11 +383,11 @@
     },
     {
       "label": "pointing",
-      "definition": "Fine alignment of the tool on the target, before contact."
+      "definition": "Fine alignment of the tool on the drilling location, before contact."
     },
     {
       "label": "press",
-      "definition": "Pushing the tool against the target."
+      "definition": "Pushing the tool against the drilling location."
     },
     {
       "label": "tilt",
@@ -211,10 +452,12 @@
     "t_end": "float (s)",
     "parents": "list of parent record ids (empty for high level)",
     "rep": "int or null",
-    "side": "left | right | null",
+    "side": "left | right | both | null",
+    "direction": "left | right | null",
     "external_load": "none | left | right | both | null",
     "contact_points": "none | left | right | both | null",
-    "target": "string or null",
+    "target": "value from attribute_values.target or null",
+    "location": "value from attribute_values.location or null",
     "phase": "string or null",
     "note": "string or null"
   },
@@ -223,19 +466,25 @@
       "trial_id": "posterior_reaching",
       "attributes": {
         "variant": "posterior_reaching",
+        "target": null,
         "kg": null
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right"
       ],
-      "side_meaning": "upper arm",
+      "side_meaning": "arm passing over the shoulder",
       "high": {
         "label": "rom_shoulder",
+        "external_load": "none",
+        "contact_points": "both",
         "mid": {
           "label": "posterior_reach",
           "type": "cycle",
           "reps": 1,
           "reps_per": "side",
+          "external_load": "none",
+          "contact_points": "both",
           "low": [
             {
               "label": "reach_behind",
@@ -261,13 +510,18 @@
       "trial_id": "infinity_tracing",
       "attributes": {
         "variant": "infinity_tracing",
+        "target": null,
         "kg": null
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right"
       ],
+      "side_meaning": "moving arm",
       "high": {
         "label": "rom_shoulder",
+        "external_load": "none",
+        "contact_points": "none",
         "mid": {
           "label": "figure_eight",
           "type": "cycle",
@@ -282,18 +536,25 @@
       "trial_id": "lateral_reaching",
       "attributes": {
         "variant": "lateral_reaching",
+        "target": null,
         "kg": null
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right"
       ],
+      "side_meaning": "bending side",
       "high": {
         "label": "rom_trunk",
+        "external_load": "none",
+        "contact_points": "side",
         "mid": {
           "label": "lateral_bend",
           "type": "cycle",
           "reps": 5,
           "reps_per": "side",
+          "external_load": "none",
+          "contact_points": "side",
           "low": [
             {
               "label": "bend_down",
@@ -315,18 +576,24 @@
       "trial_id": "axial_twist",
       "attributes": {
         "variant": "axial_twist",
+        "target": null,
         "kg": null
       },
-      "annotated_attributes": [
-        "direction"
+      "direction_values": [
+        "left",
+        "right"
       ],
       "high": {
         "label": "rom_trunk",
+        "external_load": "none",
+        "contact_points": "none",
         "mid": {
           "label": "trunk_twist",
           "type": "cycle",
           "reps": 1,
           "reps_per": "direction",
+          "external_load": "none",
+          "contact_points": "none",
           "low": [
             {
               "label": "twist_out",
@@ -346,16 +613,20 @@
       "trial_id": "sitting_standing",
       "attributes": {
         "variant": "no_hands",
+        "target": "stool",
         "kg": null
       },
-      "annotated_attributes": [],
       "high": {
         "label": "sit_to_stand",
+        "external_load": "none",
+        "contact_points": "none",
         "mid": {
           "label": "sit_stand_cycle",
           "type": "cycle",
           "reps": null,
           "reps_note": "3-5 per protocol",
+          "external_load": "none",
+          "contact_points": "none",
           "low": [
             {
               "label": "sit_down",
@@ -380,16 +651,20 @@
       "trial_id": "sitting_standing_hands",
       "attributes": {
         "variant": "hands",
+        "target": "stool",
         "kg": null
       },
-      "annotated_attributes": [],
       "high": {
         "label": "sit_to_stand",
+        "external_load": "none",
+        "contact_points": "both",
         "mid": {
           "label": "sit_stand_cycle",
           "type": "cycle",
           "reps": null,
           "reps_note": "3-5 per protocol",
+          "external_load": "none",
+          "contact_points": "both",
           "low": [
             {
               "label": "sit_down",
@@ -417,20 +692,30 @@
       "trial_id": "pouring_light",
       "attributes": {
         "variant": "light",
+        "target": "light_bottle",
         "kg": 0.1
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right",
+        "both"
       ],
       "high": {
         "label": "pouring",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "pouring_round",
           "type": "round",
           "reps": 3,
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "bottle_pickup",
+              "location": "table",
+              "external_load": "none",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -447,18 +732,9 @@
             {
               "label": "pour_glass",
               "repeat": 9,
-              "target_type": "glass",
-              "target_ids": [
-                "g1",
-                "g2",
-                "g3",
-                "g4",
-                "g5",
-                "g6",
-                "g7",
-                "g8",
-                "g9"
-              ],
+              "location_group": "glass",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -474,6 +750,9 @@
             },
             {
               "label": "bottle_putdown",
+              "location": "table",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -500,20 +779,30 @@
       "trial_id": "pouring_heavy",
       "attributes": {
         "variant": "heavy",
+        "target": "heavy_bottle",
         "kg": 1.5
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right",
+        "both"
       ],
       "high": {
         "label": "pouring",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "pouring_round",
           "type": "round",
           "reps": 3,
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "bottle_pickup",
+              "location": "table",
+              "external_load": "none",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -530,18 +819,9 @@
             {
               "label": "pour_glass",
               "repeat": 9,
-              "target_type": "glass",
-              "target_ids": [
-                "g1",
-                "g2",
-                "g3",
-                "g4",
-                "g5",
-                "g6",
-                "g7",
-                "g8",
-                "g9"
-              ],
+              "location_group": "glass",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -557,6 +837,9 @@
             },
             {
               "label": "bottle_putdown",
+              "location": "table",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -583,20 +866,30 @@
       "trial_id": "drilling_horizontal",
       "attributes": {
         "variant": "horizontal",
+        "target": "drill",
         "kg": null
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right",
+        "both"
       ],
       "high": {
         "label": "drilling",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "drilling_round",
           "type": "round",
           "reps": 3,
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "tool_pickup",
+              "location": "table",
+              "external_load": "none",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -613,22 +906,9 @@
             {
               "label": "drill_target",
               "repeat": 13,
-              "target_type": "drilling_target",
-              "target_ids": [
-                "t1",
-                "t2",
-                "t3",
-                "t4",
-                "t5",
-                "t6",
-                "t7",
-                "t8",
-                "t9",
-                "t10",
-                "t11",
-                "t12",
-                "t13"
-              ],
+              "location_group": "horizontal_drilling_target",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -649,6 +929,9 @@
             },
             {
               "label": "tool_putdown",
+              "location": "table",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -676,20 +959,33 @@
       "attributes": {
         "variant": "2hands",
         "load_class": "light",
-        "kg": null,
-        "kg_note": "empty box"
+        "target": "light_box",
+        "kg": null
       },
-      "annotated_attributes": [],
+      "side_values": [
+        "left",
+        "right",
+        "both"
+      ],
+      "expected_side": "both",
+      "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "lifting_cycle",
           "type": "cycle",
           "reps": 3,
+          "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "lift_to_shelf",
-              "target_type": "shelf",
+              "location_group": "shelf",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -699,28 +995,30 @@
                 {
                   "label": "grasp",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 },
                 {
                   "label": "transport",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "place",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "release",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 }
               ]
             },
             {
               "label": "lower_to_floor",
-              "target_type": "floor",
+              "location": "floor",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -730,22 +1028,22 @@
                 {
                   "label": "grasp",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 },
                 {
                   "label": "transport",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "place",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "release",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 }
               ]
             }
@@ -758,19 +1056,33 @@
       "attributes": {
         "variant": "2hands",
         "load_class": "heavy",
+        "target": "heavy_box",
         "kg": 10
       },
-      "annotated_attributes": [],
+      "side_values": [
+        "left",
+        "right",
+        "both"
+      ],
+      "expected_side": "both",
+      "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "lifting_cycle",
           "type": "cycle",
           "reps": 3,
+          "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "lift_to_shelf",
-              "target_type": "shelf",
+              "location_group": "shelf",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -780,28 +1092,30 @@
                 {
                   "label": "grasp",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 },
                 {
                   "label": "transport",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "place",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "release",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 }
               ]
             },
             {
               "label": "lower_to_floor",
-              "target_type": "floor",
+              "location": "floor",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -811,22 +1125,22 @@
                 {
                   "label": "grasp",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 },
                 {
                   "label": "transport",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "place",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 },
                 {
                   "label": "release",
                   "external_load": "none",
-                  "contact_points": "both"
+                  "contact_points": "side"
                 }
               ]
             }
@@ -839,21 +1153,33 @@
       "attributes": {
         "variant": "1hand",
         "load_class": "light",
+        "target": "light_bottle",
         "kg": 0.1
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right",
+        "both"
       ],
+      "expected_side": "left or right",
+      "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "lifting_cycle",
           "type": "cycle",
           "reps": 3,
+          "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "lift_to_shelf",
-              "target_type": "shelf",
+              "location_group": "shelf",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -884,7 +1210,9 @@
             },
             {
               "label": "lower_to_floor",
-              "target_type": "floor",
+              "location": "floor",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -922,21 +1250,33 @@
       "attributes": {
         "variant": "1hand",
         "load_class": "heavy",
+        "target": "heavy_bottle",
         "kg": 1.5
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right",
+        "both"
       ],
+      "expected_side": "left or right",
+      "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "lifting_cycle",
           "type": "cycle",
           "reps": 3,
+          "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "lift_to_shelf",
-              "target_type": "shelf",
+              "location_group": "shelf",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -967,7 +1307,9 @@
             },
             {
               "label": "lower_to_floor",
-              "target_type": "floor",
+              "location": "floor",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -1004,20 +1346,29 @@
       "trial_id": "drilling_vertical",
       "attributes": {
         "variant": "vertical",
+        "target": "drill",
         "kg": null
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right",
+        "both"
       ],
       "high": {
         "label": "drilling",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "drilling_round",
           "type": "round",
           "reps": 5,
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "tool_pickup",
+              "external_load": "none",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -1034,9 +1385,10 @@
             {
               "label": "drill_target",
               "repeat": null,
-              "target_type": "drilling_target",
-              "target_ids": null,
+              "location_group": "vertical_drilling_target",
               "repeat_note": "number of predefined targets on the rack",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -1057,6 +1409,8 @@
             },
             {
               "label": "tool_putdown",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "transport",
@@ -1082,21 +1436,30 @@
     {
       "trial_id": "door",
       "attributes": {
+        "target": "door",
         "kg": null
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right",
+        "both"
       ],
       "high": {
         "label": "door",
+        "external_load": "none",
+        "contact_points": "side",
         "mid": {
           "label": "door_cycle",
           "type": "cycle",
           "reps": 5,
           "reps_note": "5 pull + 5 push in the protocol = 5 open/close cycles",
+          "external_load": "none",
+          "contact_points": "side",
           "low": [
             {
               "label": "door_opening",
+              "external_load": "none",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -1128,6 +1491,8 @@
             },
             {
               "label": "door_closing",
+              "external_load": "none",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "reach",
@@ -1165,35 +1530,49 @@
       "trial_id": "throwing",
       "attributes": {
         "variant": "chest_pass",
+        "target": "medicine_ball",
         "kg": 9
       },
-      "annotated_attributes": [],
+      "side_values": [
+        "left",
+        "right",
+        "both"
+      ],
+      "expected_side": "both",
       "high": {
         "label": "throwing_catching",
+        "external_load": "side",
+        "contact_points": "side",
         "mid": {
           "label": "pass_cycle",
           "type": "cycle",
           "reps": null,
           "reps_note": "3-5 per protocol",
+          "external_load": "side",
+          "contact_points": "side",
           "low": [
             {
               "label": "ball_throw",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "move",
-                  "external_load": "both",
-                  "contact_points": "both",
+                  "external_load": "side",
+                  "contact_points": "side",
                   "phase": "wind_up"
                 },
                 {
                   "label": "throw",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 }
               ]
             },
             {
               "label": "ball_catch",
+              "external_load": "side",
+              "contact_points": "side",
               "atomic": [
                 {
                   "label": "hold",
@@ -1203,8 +1582,8 @@
                 },
                 {
                   "label": "catch",
-                  "external_load": "both",
-                  "contact_points": "both"
+                  "external_load": "side",
+                  "contact_points": "side"
                 }
               ]
             }
@@ -1216,20 +1595,26 @@
       "trial_id": "curl",
       "attributes": {
         "variant": "alternating",
+        "target": "dumbbells",
         "kg": 4
       },
-      "annotated_attributes": [
-        "side"
+      "side_values": [
+        "left",
+        "right"
       ],
-      "side_meaning": "active arm",
+      "side_meaning": "active arm (both hands hold a dumbbell)",
       "high": {
         "label": "curl",
+        "external_load": "both",
+        "contact_points": "both",
         "mid": {
           "label": "curl_cycle",
           "type": "cycle",
           "reps": null,
           "reps_per": "side",
           "reps_note": "3-5 per protocol",
+          "external_load": "both",
+          "contact_points": "both",
           "low": [
             {
               "label": "flexion",

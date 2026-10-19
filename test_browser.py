@@ -383,7 +383,7 @@ def main():
             "let result={text:choice.textContent,checked:choice.querySelector('input').checked};"
             "document.getElementById('editLoad').value='both';"
             "document.getElementById('editContact').value='both';"
-            "document.getElementById('editTarget').value='hand';"
+            "document.getElementById('editTarget').value='dumbbells';"
             "choice.click();document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
         assert "#2 curl_cycle" in low_parent["text"] and not low_parent["checked"], low_parent
         go_to(60)
@@ -403,7 +403,7 @@ def main():
         assert saved["annotations"][1]["rep"] == 2 and saved["annotations"][1]["parents"] == [1], saved
         assert saved["annotations"][1]["side"] == "left", saved
         assert saved["annotations"][2]["parents"] == [2] and saved["annotations"][2]["external_load"] == "both", saved
-        assert saved["annotations"][2]["contact_points"] == "both" and saved["annotations"][2]["target"] == "hand", saved
+        assert saved["annotations"][2]["contact_points"] == "both" and saved["annotations"][2]["target"] == "dumbbells", saved
         assert saved["annotations"][2]["phase"] is None, saved
         assert saved["annotations"][3]["level"] == "aux" and saved["annotations"][3]["t_start"] == saved["annotations"][3]["t_end"], saved
         reopened_parent = webdriver(endpoint + "/execute/sync", {"script":
@@ -539,7 +539,7 @@ def main():
             "parent.click();document.getElementById('editLoad').value='both';"
             "document.getElementById('editContact').value='both';"
             "document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
-        assert "#3 ball_throw" in atomic["parent"] and atomic["load"] and not atomic["target"], atomic
+        assert "#3 ball_throw" in atomic["parent"] and atomic["load"] and atomic["target"], atomic
         assert atomic["phase"] == "wind_up", atomic
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
         for _ in range(50):
@@ -550,6 +550,34 @@ def main():
         records = json.loads(path.read_text())["annotations"]
         assert records[3]["level"] == "atomic" and records[3]["phase"] == "wind_up", records
         assert records[3]["parents"] == [3] and records[3]["external_load"] == "both", records
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='pouring_light_0';"
+            "s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"]:
+                break
+            time.sleep(0.1)
+        assert state["ready"] and not state["busy"], state
+        go_to(5)
+        assert click_label("Low", "pour_glass")
+        go_to(8)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        location = webdriver(endpoint + "/execute/sync", {"script":
+            "document.querySelector('.annotation-caption').click();"
+            "let field=document.getElementById('editLocationSelect');"
+            "let result={visible:!field.closest('label').hidden,"
+            "values:[...field.options].map(option=>option.value)};"
+            "field.value='g9';document.querySelector('#editForm button[type=submit]').click();"
+            "return result", "args": []})
+        assert location["visible"] and location["values"] == ["", "g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8", "g9"], location
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        path = ViewerTest.root / "s5/label/pouring_light_0.json"
+        for _ in range(50):
+            if path.exists():
+                break
+            time.sleep(0.1)
+        assert json.loads(path.read_text())["annotations"][0]["location"] == "g9"
         old_path = ViewerTest.root / "s5/label/curl_1.json"
         old = {"schema_version": "0.1", "subject": "s5", "sequence": "curl_1", "fps": 30,
                "annotations": [{**records[0], "label": "curl"}]}

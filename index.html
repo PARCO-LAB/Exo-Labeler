@@ -178,7 +178,8 @@
       <label class="for-load">Carico esterno<select id="editLoad"></select></label>
       <label class="for-load">Punti di contatto<select id="editContact"></select></label>
       <label class="for-phase">Fase<select id="editPhase"></select></label>
-      <label class="for-low">Target<input id="editTarget" maxlength="200"></label>
+      <label class="for-target">Target<select id="editTarget"></select></label>
+      <label class="for-location">Location<select id="editLocationSelect"></select><input id="editLocationText" maxlength="80" hidden></label>
       <fieldset id="editParents" class="for-parent edit-wide"><legend>Label genitore</legend><div id="parentChoices"></div></fieldset>
       <label class="edit-wide">Nota<textarea id="editNote" rows="2" maxlength="5000"></textarea></label>
     </div>
@@ -260,7 +261,7 @@
   }
 
   function recordSummary(record) {
-    const attributes = ['phase', 'rep', 'side', 'direction', 'external_load', 'contact_points', 'target', 'note']
+    const attributes = ['phase', 'rep', 'side', 'direction', 'external_load', 'contact_points', 'target', 'location', 'note']
       .filter(name => record[name] !== null && record[name] !== '')
       .map(name => `${name}: ${name === 'note' ? record[name].slice(0, 80) : record[name]}`);
     if (record.level === 'high') attributes.unshift(...Object.entries(labelSchema?.task_attributes || {})
@@ -439,10 +440,14 @@
     placeLabelTooltip(x, y);
   }
 
-  function newRecord(level, label, frame, phase = null) {
+  function newRecord(choice, frame) {
+    const {level, label, phase} = choice;
     const record = {id: Math.max(0, ...annotations.map(item => item.id)) + 1, level, label, phase,
       start_frame: frame, end_frame: frame, t_start: 0, t_end: 0, parents: [], rep: null,
-      side: null, direction: null, external_load: null, contact_points: null, target: null, note: null};
+      side: null, direction: null, external_load: null, contact_points: null,
+      target: level === 'high' ? labelSchema.task_attributes.target ?? null : null,
+      location: level === 'low' && choice.location_values?.length === 1 ? choice.location_values[0] : null,
+      note: null};
     syncTimes(record);
     annotations.push(record);
     if (!(level === 'aux' && label === 'sync')) pendingId = record.id;
@@ -457,7 +462,7 @@
         && item.phase === choice.phase)) return;
     if (pendingId !== null) { message('Chiudi prima l’intervallo corrente con End.', 'warn'); return; }
     if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
-    const record = newRecord(choice.level, choice.label, pendingFrame + 1, choice.phase);
+    const record = newRecord(choice, pendingFrame + 1);
     message(record.id === pendingId
       ? `${record.label}: inizio al frame ${record.start_frame}. Vai al frame finale e premi End.`
       : `${record.label}: evento al frame ${record.start_frame}.`);
@@ -499,14 +504,32 @@
     document.getElementById('editStart').max = frames;
     document.getElementById('editEnd').max = frames;
     document.getElementById('editRep').value = record.rep ?? '';
-    document.getElementById('editTarget').value = record.target ?? '';
     document.getElementById('editNote').value = record.note ?? '';
     for (const [field, id] of [['side', 'editSide'], ['direction', 'editDirection'],
                                ['external_load', 'editLoad'], ['contact_points', 'editContact']])
-      fillSelect(document.getElementById(id), labelSchema.attribute_values[field], record[field]);
+      fillSelect(document.getElementById(id),
+        field === 'side' ? labelSchema.side_values : field === 'direction' ? labelSchema.direction_values
+        : labelSchema.attribute_values[field].values, record[field]);
+    fillSelect(document.getElementById('editTarget'),
+      labelSchema.attribute_values.target.values.map(item => item.value), record.target);
+    document.getElementById('editTarget').disabled = record.level === 'high' && !!labelSchema.task_attributes.target;
     document.querySelectorAll('.for-mid').forEach(item => item.hidden = record.level !== 'mid');
-    document.querySelectorAll('.for-low').forEach(item => item.hidden = record.level !== 'low');
-    document.querySelectorAll('.for-load').forEach(item => item.hidden = record.level !== labelSchema.lowest_level);
+    document.querySelectorAll('.for-target').forEach(item => item.hidden = record.level === 'aux'
+      || record.level === 'high' && !labelSchema.task_attributes.target);
+    document.querySelectorAll('.for-load').forEach(item => item.hidden = record.level === 'aux');
+    const choice = labelSchema.choices.find(item => item.level === record.level && item.label === record.label
+      && item.phase === record.phase);
+    const locations = choice?.location_values || [];
+    const pattern = choice?.location_pattern;
+    document.querySelectorAll('.for-location').forEach(item => item.hidden = record.level !== 'low'
+      || (!locations.length && !pattern));
+    fillSelect(document.getElementById('editLocationSelect'), locations, record.location);
+    document.getElementById('editLocationSelect').hidden = !!pattern;
+    const locationText = document.getElementById('editLocationText');
+    locationText.hidden = !pattern;
+    locationText.value = record.location ?? '';
+    locationText.pattern = pattern ? pattern.replace('<n>', '[1-9][0-9]*') : '';
+    locationText.placeholder = pattern ? pattern.replace('<n>', '1') : '';
     const phases = [...new Set(labelSchema.choices.filter(item => item.level === record.level
       && item.label === record.label && item.phase).map(item => item.phase))];
     document.querySelectorAll('.for-phase').forEach(item => item.hidden = !phases.length);
@@ -514,8 +537,9 @@
     fillSelect(phaseSelect, phases, record.phase);
     phaseSelect.required = phases.length > 0 && !labelSchema.choices.some(item => item.level === record.level
       && item.label === record.label && item.phase === null);
-    document.querySelectorAll('.for-side').forEach(item => item.hidden = record.level !== 'mid' || !labelSchema.annotated_attributes.includes('side'));
-    document.querySelectorAll('.for-direction').forEach(item => item.hidden = record.level !== 'mid' || !labelSchema.annotated_attributes.includes('direction'));
+    document.querySelectorAll('.for-side').forEach(item => item.hidden = record.level === 'aux' || !labelSchema.side_values.length);
+    document.querySelectorAll('.for-direction').forEach(item => item.hidden = !['mid', 'low', 'atomic'].includes(record.level)
+      || !labelSchema.direction_values.length);
     document.querySelectorAll('.for-parent').forEach(item => item.hidden = !['mid', 'low', 'atomic'].includes(record.level));
     const levels = ['high', 'mid', 'low', 'atomic'];
     const parentLevel = levels.slice(0, levels.indexOf(record.level)).reverse()
@@ -791,9 +815,11 @@
       controls.forEach(control => control.disabled = false);
       seek(0);
       const counts = metadata.map(item => item.frames);
-      message(labelProblem || (new Set(counts).size > 1
-        ? `Lunghezze diverse: body ${counts[0]}, esterna ${counts[1]}, Aria ${counts[2]} frame. La timeline si ferma al più corto.`
-        : ''), labelProblem || new Set(counts).size > 1 ? 'warn' : '');
+      const warnings = saved.warnings || [];
+      const lengthWarning = new Set(counts).size > 1
+        ? `Lunghezze diverse: body ${counts[0]}, esterna ${counts[1]}, Aria ${counts[2]} frame. La timeline si ferma al più corto.` : '';
+      message(labelProblem || [lengthWarning, ...warnings].filter(Boolean).join(' · '),
+        labelProblem || lengthWarning || warnings.length ? 'warn' : '');
     } catch (error) {
       if (turn === loading) {
         frames = 0;
@@ -821,8 +847,9 @@
       saving = false;
       dirty = editVersion !== version;
       saveButton.disabled = !dirty || pendingId !== null;
-      message(dirty ? 'Salvataggio completato; ci sono nuove modifiche da salvare.'
-        : `Annotazioni salvate in ${subject.value}/label/${sequence.value}.json`);
+      const confirmation = dirty ? 'Salvataggio completato; ci sono nuove modifiche da salvare.'
+        : `Annotazioni salvate in ${subject.value}/label/${sequence.value}.json`;
+      message([confirmation, ...(result.warnings || [])].join(' · '), result.warnings?.length ? 'warn' : '');
     } catch (error) {
       if (turn !== loading) return;
       saving = false;
@@ -908,14 +935,16 @@
     record.end_frame = end;
     record.rep = record.level === 'mid' && document.getElementById('editRep').value
       ? Number(document.getElementById('editRep').value) : null;
-    record.side = record.level === 'mid' && labelSchema.annotated_attributes.includes('side')
+    record.side = record.level !== 'aux' && labelSchema.side_values.length
       ? document.getElementById('editSide').value || null : null;
-    record.direction = record.level === 'mid' && labelSchema.annotated_attributes.includes('direction')
+    record.direction = ['mid', 'low', 'atomic'].includes(record.level) && labelSchema.direction_values.length
       ? document.getElementById('editDirection').value || null : null;
-    record.external_load = record.level === labelSchema.lowest_level ? document.getElementById('editLoad').value || null : null;
-    record.contact_points = record.level === labelSchema.lowest_level ? document.getElementById('editContact').value || null : null;
+    record.external_load = record.level !== 'aux' ? document.getElementById('editLoad').value || null : null;
+    record.contact_points = record.level !== 'aux' ? document.getElementById('editContact').value || null : null;
     record.phase = document.querySelector('.for-phase').hidden ? null : document.getElementById('editPhase').value || null;
-    record.target = record.level === 'low' ? document.getElementById('editTarget').value || null : null;
+    record.target = record.level !== 'aux' ? document.getElementById('editTarget').value || null : null;
+    record.location = record.level === 'low' ? (document.getElementById('editLocationText').hidden
+      ? document.getElementById('editLocationSelect').value : document.getElementById('editLocationText').value.trim()) || null : null;
     record.note = document.getElementById('editNote').value || null;
     record.parents = ['mid', 'low', 'atomic'].includes(record.level)
       ? [...document.querySelectorAll('#parentChoices input:checked')].map(input => Number(input.value)) : [];

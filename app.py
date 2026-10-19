@@ -21,6 +21,22 @@ SUBJECT = re.compile(r"s\d+")
 LABEL_SCHEMA = json.loads(Path(__file__).with_name("label_schema.json").read_text())
 TASKS = {task["trial_id"]: task for task in LABEL_SCHEMA["tasks"]}
 MAX_LABEL_BYTES = 4 * 1024 * 1024
+LOCATION_GROUPS = {entry["group"]: entry for entry in LABEL_SCHEMA["attribute_values"]["location"]["values"]}
+TARGET_VALUES = {entry["value"] for entry in LABEL_SCHEMA["attribute_values"]["target"]["values"]}
+
+
+def location_rule(low):
+    if "location" in low:
+        return [low["location"]], None
+    group = LOCATION_GROUPS.get(low.get("location_group"))
+    return (group.get("values", []), group.get("pattern")) if group else ([], None)
+
+
+def valid_location(value, choice):
+    if value in choice.get("location_values", []):
+        return True
+    pattern = choice.get("location_pattern")
+    return bool(pattern and re.fullmatch(re.escape(pattern).replace(re.escape("<n>"), r"[1-9][0-9]*"), value))
 
 
 def label_choices(sequence):
@@ -31,9 +47,12 @@ def label_choices(sequence):
     choices = []
     seen = set()
 
-    def add(level, label, definition="", phase=None):
+    def add(level, label, definition="", phase=None, low=None):
         if (level, label, phase) not in seen:
-            choices.append({"level": level, "label": label, "definition": definition, "phase": phase})
+            choice = {"level": level, "label": label, "definition": definition, "phase": phase}
+            if low is not None:
+                choice["location_values"], choice["location_pattern"] = location_rule(low)
+            choices.append(choice)
             seen.add((level, label, phase))
 
     definitions = {entry["label"]: entry["definition"]
@@ -43,7 +62,7 @@ def label_choices(sequence):
     mid = high["mid"]
     add("mid", mid["label"])
     for low in mid.get("low", []):
-        add("low", low["label"])
+        add("low", low["label"], low=low)
         for atomic in low.get("atomic", []):
             add("atomic", atomic["label"], definitions.get(atomic["label"], ""), atomic.get("phase"))
     for auxiliary in LABEL_SCHEMA["auxiliary_labels"]:
@@ -81,8 +100,8 @@ def validate_labels(document, subject, sequence, files):
     phases = {(choice["level"], choice["label"], choice["phase"]) for choice in choices}
     max_frame = min(probe(path)["frames"] for path in files.values())
     fields = {"id", "level", "label", "phase", "start_frame", "end_frame", "t_start", "t_end", "parents",
-              "rep", "side", "direction", "external_load", "contact_points", "target", "note"}
-    lowest = next(level for level in ("atomic", "low", "mid") if any(choice["level"] == level for choice in choices)) if task else None
+              "rep", "side", "direction", "external_load", "contact_points", "target", "location", "note"}
+    low_choices = {choice["label"]: choice for choice in choices if choice["level"] == "low"}
     ids = {}
     for record in records:
         if isinstance(record, dict) and "phase" not in record:
@@ -111,17 +130,27 @@ def validate_labels(document, subject, sequence, files):
         if record["rep"] is not None and (type(record["rep"]) is not int or record["rep"] < 1):
             raise ValueError("Numero di ripetizione non valido")
         for name in ("side", "direction", "external_load", "contact_points"):
-            if record[name] is not None and record[name] not in LABEL_SCHEMA["attribute_values"][name]:
+            if record[name] is not None and record[name] not in LABEL_SCHEMA["attribute_values"][name]["values"]:
                 raise ValueError(f"Valore non valido per {name}")
-        for name, limit in (("target", 200), ("note", 5000)):
-            if record[name] is not None and (not isinstance(record[name], str) or len(record[name]) > limit):
-                raise ValueError(f"Valore non valido per {name}")
+        if record["target"] is not None and (not isinstance(record["target"], str) or
+                                                  record["target"] not in TARGET_VALUES):
+            raise ValueError("Target non previsto dallo schema")
+        if record["location"] is not None and (record["level"] != "low" or
+                not isinstance(record["location"], str) or
+                not valid_location(record["location"], low_choices[record["label"]])):
+            raise ValueError("Location non prevista per questa label")
+        if record["note"] is not None and (not isinstance(record["note"], str) or len(record["note"]) > 5000):
+            raise ValueError("Nota non valida")
         if (record["level"] in ("high", "aux") and record["parents"]
-                or record["level"] != "mid" and any(record[name] is not None for name in ("rep", "side", "direction"))
-                or record["level"] != lowest and any(record[name] is not None for name in ("external_load", "contact_points"))
-                or record["level"] != "low" and record["target"] is not None
-                or task and "side" not in task["annotated_attributes"] and record["side"] is not None
-                or task and "direction" not in task["annotated_attributes"] and record["direction"] is not None):
+                or record["level"] != "mid" and record["rep"] is not None
+                or record["level"] == "aux" and any(record[name] is not None for name in
+                    ("side", "direction", "external_load", "contact_points", "target", "location"))
+                or record["level"] == "high" and record["direction"] is not None
+                or task and record["side"] is not None and record["side"] not in task.get("side_values", [])
+                or task and record["direction"] is not None and
+                    (record["level"] == "high" or record["direction"] not in task.get("direction_values", []))
+                or task and record["level"] == "high" and record["target"] is not None and
+                    record["target"] != task["attributes"].get("target")):
             raise ValueError("Attributi non consentiti per questa label")
         ids[identifier] = record
     present_levels = {record["level"] for record in records}
@@ -132,6 +161,28 @@ def validate_labels(document, subject, sequence, files):
         if any(parent not in ids or ids[parent]["level"] != parent_level for parent in record["parents"]):
             raise ValueError("Una label fa riferimento a un genitore non valido")
     return document
+
+
+def label_warnings(document):
+    by_parent = {}
+    for child in document["annotations"]:
+        for parent in child["parents"]:
+            by_parent.setdefault(parent, []).append(child)
+    warnings = []
+    for parent in document["annotations"]:
+        for name in ("side", "external_load", "contact_points"):
+            value = parent[name]
+            children = [child[name] for child in by_parent.get(parent["id"], []) if child[name] is not None]
+            if value is None or not children:
+                continue
+            hands = set().union(*({"left", "right"} if item == "both" else
+                                  set() if item == "none" else {item} for item in children))
+            combined = "both" if len(hands) == 2 else next(iter(hands), "none")
+            if value != combined:
+                warnings.append(f"Label #{parent['id']}: {name}={value}, figli={combined}")
+            if len(warnings) == 20:
+                return warnings
+    return warnings
 
 
 def discover(root):
@@ -276,7 +327,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 finally:
                     if temporary is not None:
                         temporary.unlink(missing_ok=True)
-            self.send_json({"revision": label_revision(payload)})
+            self.send_json({"revision": label_revision(payload), "warnings": label_warnings(document)})
         except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as exc:
             self.send_json({"error": f"Salvataggio non riuscito: {exc}"}, HTTPStatus.BAD_REQUEST)
         except (OSError, subprocess.SubprocessError) as exc:
@@ -308,10 +359,9 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 task, choices = label_choices(sequence)
                 self.send_json({"schema_version": LABEL_SCHEMA["schema_version"],
                                 "task": task["trial_id"] if task else None,
-                                "annotated_attributes": task["annotated_attributes"] if task else [],
+                                "side_values": task.get("side_values", []) if task else [],
+                                "direction_values": task.get("direction_values", []) if task else [],
                                 "task_attributes": task["attributes"] if task else {},
-                                "lowest_level": next((level for level in ("atomic", "low", "mid")
-                                                      if any(choice["level"] == level for choice in choices)), None),
                                 "choices": choices, "attribute_values": LABEL_SCHEMA["attribute_values"]})
                 return
             try:
@@ -322,8 +372,20 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 if content is not None:
                     document = json.loads(content)
                     if isinstance(document, dict) and document.get("schema_version") != LABEL_SCHEMA["schema_version"]:
-                        if document.get("schema_version") == "0.1" and document.get("annotations") == []:
+                        if document.get("schema_version") in ("0.1", "0.2") and document.get("annotations") == []:
                             document["schema_version"] = LABEL_SCHEMA["schema_version"]
+                        elif document.get("schema_version") == "0.2" and isinstance(document.get("annotations"), list):
+                            document["schema_version"] = LABEL_SCHEMA["schema_version"]
+                            for record in document["annotations"]:
+                                if isinstance(record, dict):
+                                    record.setdefault("location", None)
+                            try:
+                                validate_labels(document, subject, sequence,
+                                                self.server.recordings[subject][sequence])
+                            except (ValueError, TypeError, KeyError, IndexError):
+                                self.send_json({"error": "Annotazioni 0.2 incompatibili con lo schema 0.3: "
+                                               "migrazione manuale necessaria prima di modificarle."}, HTTPStatus.CONFLICT)
+                                return
                         else:
                             self.send_json({"error": "Annotazioni salvate con uno schema precedente: "
                                            "migrazione manuale necessaria prima di modificarle."}, HTTPStatus.CONFLICT)
@@ -333,7 +395,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 else:
                     document = {"schema_version": LABEL_SCHEMA["schema_version"], "subject": subject,
                                 "sequence": sequence, "fps": 30, "annotations": []}
-                self.send_json({"data": document, "revision": label_revision(content)})
+                self.send_json({"data": document, "revision": label_revision(content),
+                                "warnings": label_warnings(document)})
             except (OSError, ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError,
                     subprocess.SubprocessError) as exc:
                 self.send_json({"error": f"Label non caricabili: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
