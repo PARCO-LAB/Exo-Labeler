@@ -70,6 +70,11 @@ def label_choices(sequence):
     return task, choices
 
 
+def load_contact_level(choices):
+    return next((level for level in ("atomic", "low", "mid")
+                 if any(choice["level"] == level for choice in choices)), None)
+
+
 def label_path(server, subject, sequence):
     if sequence not in server.recordings.get(subject, {}):
         raise LookupError("Sequenza non trovata")
@@ -102,6 +107,7 @@ def validate_labels(document, subject, sequence, files):
     fields = {"id", "level", "label", "phase", "start_frame", "end_frame", "t_start", "t_end", "parents",
               "rep", "side", "direction", "external_load", "contact_points", "target", "location", "note"}
     low_choices = {choice["label"]: choice for choice in choices if choice["level"] == "low"}
+    load_level = load_contact_level(choices)
     ids = {}
     for record in records:
         if isinstance(record, dict) and "phase" not in record:
@@ -145,6 +151,9 @@ def validate_labels(document, subject, sequence, files):
                 or record["level"] != "mid" and record["rep"] is not None
                 or record["level"] == "aux" and any(record[name] is not None for name in
                     ("side", "direction", "external_load", "contact_points", "target", "location"))
+                or record["level"] != load_level and any(record[name] is not None for name in
+                    ("external_load", "contact_points"))
+                or record["level"] == "high" and record["side"] is not None
                 or record["level"] == "high" and record["direction"] is not None
                 or task and record["side"] is not None and record["side"] not in task.get("side_values", [])
                 or task and record["direction"] is not None and
@@ -170,7 +179,7 @@ def label_warnings(document):
             by_parent.setdefault(parent, []).append(child)
     warnings = []
     for parent in document["annotations"]:
-        for name in ("side", "external_load", "contact_points"):
+        for name in ("side",):
             value = parent[name]
             children = [child[name] for child in by_parent.get(parent["id"], []) if child[name] is not None]
             if value is None or not children:
@@ -362,7 +371,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
                                 "side_values": task.get("side_values", []) if task else [],
                                 "direction_values": task.get("direction_values", []) if task else [],
                                 "task_attributes": task["attributes"] if task else {},
-                                "choices": choices, "attribute_values": LABEL_SCHEMA["attribute_values"]})
+                                "choices": choices, "attribute_values": LABEL_SCHEMA["attribute_values"],
+                                "load_contact_level": load_contact_level(choices)})
                 return
             try:
                 path = label_path(self.server, subject, sequence)
@@ -371,27 +381,32 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     raise ValueError("File di label troppo grande")
                 if content is not None:
                     document = json.loads(content)
+                    upgraded = False
                     if isinstance(document, dict) and document.get("schema_version") != LABEL_SCHEMA["schema_version"]:
-                        if document.get("schema_version") in ("0.1", "0.2") and document.get("annotations") == []:
+                        old_version = document.get("schema_version")
+                        if old_version in ("0.1", "0.2", "0.3") and document.get("annotations") == []:
                             document["schema_version"] = LABEL_SCHEMA["schema_version"]
-                        elif document.get("schema_version") == "0.2" and isinstance(document.get("annotations"), list):
+                            upgraded = True
+                        elif old_version in ("0.2", "0.3") and isinstance(document.get("annotations"), list):
                             document["schema_version"] = LABEL_SCHEMA["schema_version"]
-                            for record in document["annotations"]:
-                                if isinstance(record, dict):
-                                    record.setdefault("location", None)
-                            try:
-                                validate_labels(document, subject, sequence,
-                                                self.server.recordings[subject][sequence])
-                            except (ValueError, TypeError, KeyError, IndexError):
-                                self.send_json({"error": "Annotazioni 0.2 incompatibili con lo schema 0.3: "
-                                               "migrazione manuale necessaria prima di modificarle."}, HTTPStatus.CONFLICT)
-                                return
+                            upgraded = True
+                            if old_version == "0.2":
+                                for record in document["annotations"]:
+                                    if isinstance(record, dict):
+                                        record.setdefault("location", None)
                         else:
                             self.send_json({"error": "Annotazioni salvate con uno schema precedente: "
                                            "migrazione manuale necessaria prima di modificarle."}, HTTPStatus.CONFLICT)
                             return
-                    document = validate_labels(document, subject, sequence,
-                                               self.server.recordings[subject][sequence])
+                    try:
+                        document = validate_labels(document, subject, sequence,
+                                                   self.server.recordings[subject][sequence])
+                    except (ValueError, TypeError, KeyError, IndexError):
+                        if not upgraded:
+                            raise
+                        self.send_json({"error": "Annotazioni precedenti incompatibili con lo schema 0.4: "
+                                       "migrazione manuale necessaria prima di modificarle."}, HTTPStatus.CONFLICT)
+                        return
                 else:
                     document = {"schema_version": LABEL_SCHEMA["schema_version"], "subject": subject,
                                 "sequence": sequence, "fps": 30, "annotations": []}

@@ -279,9 +279,12 @@ def main():
             "document.querySelector('.track-name').click();"
             "let dialog=document.getElementById('editDialog');"
             "let result={open:dialog.open,start:document.getElementById('editStart').value,"
-            "end:document.getElementById('editEnd').value};"
+            "end:document.getElementById('editEnd').value,"
+            "sideHidden:document.getElementById('editSide').closest('label').hidden,"
+            "loadHidden:document.getElementById('editLoad').closest('label').hidden};"
             "document.getElementById('cancelEdit').click();return result", "args": []})
-        assert from_name == {"open": True, "start": "10", "end": "20"}, from_name
+        assert from_name == {"open": True, "start": "10", "end": "20",
+                             "sideHidden": True, "loadHidden": True}, from_name
         webdriver(endpoint + "/execute/sync", {"script":
             "let h=document.querySelector('.annotation-handle.end');h.focus();"
             "h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));"
@@ -368,11 +371,14 @@ def main():
         mid_parent = webdriver(endpoint + "/execute/sync", {"script":
             "document.querySelectorAll('.annotation-caption')[1].click();"
             "let field=document.getElementById('editParents'),choice=field.querySelector('label');"
-            "let result={visible:!field.hidden,text:choice.textContent,checked:choice.querySelector('input').checked};"
+            "let result={visible:!field.hidden,text:choice.textContent,checked:choice.querySelector('input').checked,"
+            "side:!document.getElementById('editSide').closest('label').hidden,"
+            "load:!document.getElementById('editLoad').closest('label').hidden};"
             "choice.click();document.getElementById('editRep').value='2';"
             "document.getElementById('editSide').value='left';"
             "document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
         assert mid_parent["visible"] and "#1 curl" in mid_parent["text"] and not mid_parent["checked"], mid_parent
+        assert mid_parent["side"] and not mid_parent["load"], mid_parent
         go_to(32)
         assert click_label("Low", "flexion")
         go_to(34)
@@ -380,12 +386,14 @@ def main():
         low_parent = webdriver(endpoint + "/execute/sync", {"script":
             "document.querySelectorAll('.annotation-caption')[2].click();"
             "let choice=document.querySelector('#parentChoices label');"
-            "let result={text:choice.textContent,checked:choice.querySelector('input').checked};"
+            "let result={text:choice.textContent,checked:choice.querySelector('input').checked,"
+            "load:!document.getElementById('editLoad').closest('label').hidden};"
             "document.getElementById('editLoad').value='both';"
             "document.getElementById('editContact').value='both';"
             "document.getElementById('editTarget').value='dumbbells';"
             "choice.click();document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
         assert "#2 curl_cycle" in low_parent["text"] and not low_parent["checked"], low_parent
+        assert low_parent["load"], low_parent
         go_to(60)
         assert click_label("Aux", "sync")
         point = webdriver(endpoint + "/execute/sync", {"script":
@@ -535,11 +543,12 @@ def main():
             "let parent=document.querySelector('#parentChoices label');"
             "let result={parent:parent.textContent,load:!document.getElementById('editLoad').closest('label').hidden,"
             "target:!document.getElementById('editTarget').closest('label').hidden,"
+            "side:!document.getElementById('editSide').closest('label').hidden,"
             "phase:document.getElementById('editPhase').value};"
             "parent.click();document.getElementById('editLoad').value='both';"
             "document.getElementById('editContact').value='both';"
             "document.querySelector('#editForm button[type=submit]').click();return result", "args": []})
-        assert "#3 ball_throw" in atomic["parent"] and atomic["load"] and atomic["target"], atomic
+        assert "#3 ball_throw" in atomic["parent"] and atomic["load"] and atomic["target"] and atomic["side"], atomic
         assert atomic["phase"] == "wind_up", atomic
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
         for _ in range(50):

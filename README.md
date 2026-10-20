@@ -56,7 +56,7 @@ istanti reali delle camere dipende dalla sincronizzazione dei file originali.
 Aprire **Label** e cliccare una voce per iniziare l'annotazione al frame
 visualizzato. Passando il mouse o usando la tastiera su una voce compare la
 definizione presente in `label_schema.json`; per le label mid e low, prive di
-definizione nello schema 0.3, compare un avviso. Le annotazioni sono comuni alle tre camere. Per una label con durata,
+definizione nello schema 0.4, compare un avviso. Le annotazioni sono comuni alle tre camere. Per una label con durata,
 raggiungere il frame finale e premere **End**; `sync` è un evento puntuale e si
 chiude subito. Le azioni con fasi diverse (per esempio `move · wind_up` e
 `hold · waiting`) sono scelte distinte. La timeline ha righello in frame e
@@ -74,17 +74,19 @@ eventuali label genitore tramite caselle da spuntare, nota, o per eliminare l'an
 riga ci sono più annotazioni, il clic sul nome apre una scelta per frame. La palette
 offre solo le label previste dal task della sequenza. `static_0` e `static_1`
 non hanno ancora un task in `label_schema.json`, quindi non offrono label.
-Lo schema 0.3 mantiene il livello `atomic` per i task che lo prevedono.
+Lo schema 0.4 mantiene il livello `atomic` per i task che lo prevedono.
 `rep` si imposta sul livello mid; `direction` su mid, low o atomic solo nei task
-che la prevedono. `side`, `external_load` e `contact_points` si possono
-impostare su high, mid, low e atomic secondo i valori ammessi dal task.
+che la prevedono. `side` si imposta su mid e può essere raffinato su low e
+atomic, secondo i valori ammessi dal task. `external_load` e `contact_points`
+si impostano solo sul livello più dettagliato previsto dal task: atomic, oppure
+low o mid quando i livelli inferiori non sono presenti.
 `target` usa i valori chiusi dello schema: sul livello high è fissato dal task
 quando previsto, e può essere specificato anche sui livelli inferiori.
 `location` si imposta solo sulle label low che la prevedono; il menu mostra
 i valori consentiti oppure il formato da compilare (per esempio `r1`).
 `variant`, `kg` e `load_class` sono fissati dal task e compaiono sulla traccia
-high quando valorizzati. Se un attributo delle mani su un parent non coincide
-con l'unione dei valori dei figli annotati, compare un avviso; il salvataggio
+high quando valorizzati. Se `side` su un parent non coincide con l'unione
+dei valori dei figli annotati, compare un avviso; il salvataggio
 rimane possibile anche quando sono annotati solo alcuni figli.
 
 **Salva** scrive `s*/label/<nome_sequenza>.json` in modo atomico. Le label
@@ -100,12 +102,12 @@ più `start_frame`, `end_frame`, `direction` e `location`. Gli indici dei frame 
 **1** e gli estremi dell'intervallo sono inclusivi. `t_start` è l'istante
 iniziale del primo frame; `t_end` è il confine subito dopo l'ultimo frame
 incluso. Per `sync`, `start_frame = end_frame` e `t_start = t_end`.
-I JSON 0.1 e 0.2 vuoti si aprono come 0.3. I JSON 0.2 con annotazioni vengono
-convertiti in memoria aggiungendo `location: null`, se tutti i valori restano
-validi nel nuovo schema. Il file originale viene aggiornato alla prima modifica
-salvata. I JSON 0.1 con annotazioni e i JSON 0.2 incompatibili richiedono una
-migrazione manuale: i video restano visibili, ma l'editing è bloccato e il file
-non viene modificato.
+I JSON 0.1, 0.2 e 0.3 vuoti si aprono come 0.4. I JSON 0.2 e 0.3 con
+annotazioni vengono convertiti in memoria se tutti i valori rispettano le
+nuove regole; ai record 0.2 viene aggiunto `location: null`. Il file originale
+viene aggiornato alla prima modifica salvata. I JSON 0.1 con annotazioni e i
+JSON 0.2/0.3 incompatibili richiedono una migrazione manuale: i video restano
+visibili, ma l'editing è bloccato e il file non viene modificato.
 
 Quando si seleziona una sequenza, il server crea versioni H.264 con un
 fotogramma chiave per ogni frame e le tiene in RAM. La camera Aria viene

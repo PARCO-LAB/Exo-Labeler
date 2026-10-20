@@ -516,7 +516,7 @@
     document.querySelectorAll('.for-mid').forEach(item => item.hidden = record.level !== 'mid');
     document.querySelectorAll('.for-target').forEach(item => item.hidden = record.level === 'aux'
       || record.level === 'high' && !labelSchema.task_attributes.target);
-    document.querySelectorAll('.for-load').forEach(item => item.hidden = record.level === 'aux');
+    document.querySelectorAll('.for-load').forEach(item => item.hidden = record.level !== labelSchema.load_contact_level);
     const choice = labelSchema.choices.find(item => item.level === record.level && item.label === record.label
       && item.phase === record.phase);
     const locations = choice?.location_values || [];
@@ -537,7 +537,8 @@
     fillSelect(phaseSelect, phases, record.phase);
     phaseSelect.required = phases.length > 0 && !labelSchema.choices.some(item => item.level === record.level
       && item.label === record.label && item.phase === null);
-    document.querySelectorAll('.for-side').forEach(item => item.hidden = record.level === 'aux' || !labelSchema.side_values.length);
+    document.querySelectorAll('.for-side').forEach(item => item.hidden = !['mid', 'low', 'atomic'].includes(record.level)
+      || !labelSchema.side_values.length);
     document.querySelectorAll('.for-direction').forEach(item => item.hidden = !['mid', 'low', 'atomic'].includes(record.level)
       || !labelSchema.direction_values.length);
     document.querySelectorAll('.for-parent').forEach(item => item.hidden = !['mid', 'low', 'atomic'].includes(record.level));
@@ -935,12 +936,14 @@
     record.end_frame = end;
     record.rep = record.level === 'mid' && document.getElementById('editRep').value
       ? Number(document.getElementById('editRep').value) : null;
-    record.side = record.level !== 'aux' && labelSchema.side_values.length
+    record.side = ['mid', 'low', 'atomic'].includes(record.level) && labelSchema.side_values.length
       ? document.getElementById('editSide').value || null : null;
     record.direction = ['mid', 'low', 'atomic'].includes(record.level) && labelSchema.direction_values.length
       ? document.getElementById('editDirection').value || null : null;
-    record.external_load = record.level !== 'aux' ? document.getElementById('editLoad').value || null : null;
-    record.contact_points = record.level !== 'aux' ? document.getElementById('editContact').value || null : null;
+    record.external_load = record.level === labelSchema.load_contact_level
+      ? document.getElementById('editLoad').value || null : null;
+    record.contact_points = record.level === labelSchema.load_contact_level
+      ? document.getElementById('editContact').value || null : null;
     record.phase = document.querySelector('.for-phase').hidden ? null : document.getElementById('editPhase').value || null;
     record.target = record.level !== 'aux' ? document.getElementById('editTarget').value || null : null;
     record.location = record.level === 'low' ? (document.getElementById('editLocationText').hidden

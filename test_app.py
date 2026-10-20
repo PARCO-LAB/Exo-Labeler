@@ -152,6 +152,11 @@ class ViewerTest(unittest.TestCase):
         (self.root / "s5/label/curl_1.json").write_text(json.dumps(old_empty))
         with self.request("/api/labels?subject=s5&sequence=curl_1") as response:
             self.assertEqual(json.load(response)["data"]["schema_version"], LABEL_SCHEMA["schema_version"])
+        old_empty["schema_version"] = "0.3"
+        (self.root / "s5/label/curl_1.json").write_text(json.dumps(old_empty))
+        with self.request("/api/labels?subject=s5&sequence=curl_1") as response:
+            self.assertEqual(json.load(response)["data"]["schema_version"], LABEL_SCHEMA["schema_version"])
+        old_empty["schema_version"] = "0.2"
         old_nonempty = {**old_empty, "annotations": [{k: v for k, v in document["annotations"][0].items()
                                                       if k != "location"}]}
         (self.root / "s5/label/curl_1.json").write_text(json.dumps(old_nonempty))
@@ -160,6 +165,20 @@ class ViewerTest(unittest.TestCase):
         self.assertEqual(upgraded["data"]["annotations"][0]["location"], None)
         self.assertEqual(upgraded["data"]["schema_version"], LABEL_SCHEMA["schema_version"])
         self.assertEqual(json.loads((self.root / "s5/label/curl_1.json").read_text()), old_nonempty)
+        compatible_03 = {**old_nonempty, "schema_version": "0.3",
+                         "annotations": [{**old_nonempty["annotations"][0], "location": None}]}
+        (self.root / "s5/label/curl_1.json").write_text(json.dumps(compatible_03))
+        with self.request("/api/labels?subject=s5&sequence=curl_1") as response:
+            upgraded = json.load(response)
+        self.assertEqual(upgraded["data"]["schema_version"], LABEL_SCHEMA["schema_version"])
+        self.assertEqual(json.loads((self.root / "s5/label/curl_1.json").read_text()), compatible_03)
+        incompatible_03 = json.loads(json.dumps(compatible_03))
+        incompatible_03["annotations"][0]["external_load"] = "both"
+        (self.root / "s5/label/curl_1.json").write_text(json.dumps(incompatible_03))
+        with self.assertRaises(HTTPError) as error:
+            self.request("/api/labels?subject=s5&sequence=curl_1")
+        self.assertEqual(error.exception.code, 409)
+        self.assertEqual(json.loads((self.root / "s5/label/curl_1.json").read_text()), incompatible_03)
         incompatible = json.loads(json.dumps(old_nonempty))
         incompatible["annotations"][0]["target"] = "hand"
         (self.root / "s5/label/curl_1.json").write_text(json.dumps(incompatible))
@@ -177,9 +196,10 @@ class ViewerTest(unittest.TestCase):
         url = "/api/labels?subject=s5&sequence=throwing_0"
         with self.request("/api/schema?subject=s5&sequence=throwing_0") as response:
             schema = json.load(response)
-        self.assertEqual(schema["schema_version"], "0.3")
+        self.assertEqual(schema["schema_version"], "0.4")
         self.assertEqual(schema["side_values"], ["left", "right", "both"])
         self.assertEqual(schema["task_attributes"]["target"], "medicine_ball")
+        self.assertEqual(schema["load_contact_level"], "atomic")
         self.assertIn(("atomic", "move", "wind_up"),
                       {(item["level"], item["label"], item["phase"]) for item in schema["choices"]})
         with self.request(url) as response:
@@ -188,10 +208,10 @@ class ViewerTest(unittest.TestCase):
                 "external_load": None, "contact_points": None, "target": None, "location": None, "note": None}
         document["annotations"] = [
             {**base, "id": 1, "level": "high", "label": "throwing_catching", "target": "medicine_ball",
-             "external_load": "both", "start_frame": 1,
+             "start_frame": 1,
              "end_frame": 60, "t_start": 0, "t_end": 2},
             {**base, "id": 2, "level": "mid", "label": "pass_cycle", "parents": [1], "rep": 1,
-             "side": "both", "external_load": "left",
+             "side": "both",
              "start_frame": 1, "end_frame": 60, "t_start": 0, "t_end": 2},
             {**base, "id": 3, "level": "low", "label": "ball_throw", "parents": [2], "side": "left",
              "start_frame": 5, "end_frame": 30, "t_start": 4 / 30, "t_end": 1},
@@ -202,7 +222,7 @@ class ViewerTest(unittest.TestCase):
         with self.request(url, method="POST", data={"revision": None, "data": document}) as response:
             saved = json.load(response)
         revision = saved["revision"]
-        self.assertTrue(any("external_load" in warning for warning in saved["warnings"]))
+        self.assertTrue(any("side" in warning for warning in saved["warnings"]))
         with self.request(url) as response:
             loaded = json.load(response)
         self.assertEqual(loaded["data"], document)
@@ -210,6 +230,8 @@ class ViewerTest(unittest.TestCase):
         for index, changes in [(3, {"parents": [2]}), (3, {"phase": "waiting"}),
                                (3, {"phase": None}), (0, {"target": "door"}),
                                (3, {"target": "hand"}), (1, {"side": "invalid"}),
+                               (0, {"side": "left"}), (0, {"external_load": "both"}),
+                               (1, {"contact_points": "both"}), (2, {"external_load": "both"}),
                                (0, {"direction": "left"}), (2, {"location": "floor"})]:
             bad = json.loads(json.dumps(document))
             bad["annotations"][index].update(changes)
