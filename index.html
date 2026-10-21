@@ -50,7 +50,32 @@
     .palette-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
     .palette-group.current { padding: 4px 6px; border: 1px solid #64c7f5; border-radius: 6px; }
     .palette-group strong { margin-right: 3px; color: #aab5c2; font-size: .8rem; }
-    .label-chip { padding: 4px 8px; border: 1px solid #63788a; border-radius: 5px; background: #293948; font-size: .82rem; }
+    .label-chip, .calibration-chip { padding: 4px 8px; border: 1px solid #63788a; border-radius: 5px; background: #293948; font-size: .82rem; }
+    #calibrationPalette { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+    #calibrationPalette[hidden], #calibrationScrub[hidden] { display: none; }
+    .calibration-chip { cursor: grab; }
+    .calibration-chip:active { cursor: grabbing; }
+    .calibration-chip.selected { border-color: #59c5f4; background: #176181; box-shadow: inset 0 0 0 1px #59c5f4; }
+    .videos.calibration-placing .picture { cursor: crosshair; }
+    .calibration-overlay { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+    .videos:not(.frozen) .calibration-overlay, .videos.seeking .calibration-overlay { display: none; }
+    .calibration-marker { position: absolute; display: flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: #fff; font-size: .72rem; font-weight: 700; line-height: 1; text-shadow: 0 1px 3px #000, 0 0 3px #000; white-space: nowrap; transform: translate(-4px, -50%); pointer-events: auto; cursor: grab; touch-action: none; }
+    .calibration-marker::before { content: ''; flex: none; width: 8px; height: 8px; border: 1px solid #fff; border-radius: 50%; background: #f15b4f; box-shadow: 0 1px 3px #000; }
+    .calibration-marker.right { flex-direction: row-reverse; transform: translate(calc(-100% + 4px), -50%); }
+    .calibration-marker:hover { background: none; }
+    .calibration-marker:active { cursor: grabbing; }
+    .matrix-outline { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .matrix-outline polygon { fill: #31d4aa3d; stroke: #40f5c4; stroke-width: 2; }
+    .matrix-outline polyline { fill: none; stroke: #40f5c4; stroke-width: 2; stroke-dasharray: 5 4; }
+    .matrix-outline circle { fill: #40f5c4; stroke: #111; stroke-width: 1; }
+    .matrix-outline .matrix-vertex { pointer-events: auto; cursor: grab; touch-action: none; stroke-width: 2; }
+    .matrix-outline .matrix-vertex:hover, .matrix-outline .matrix-vertex:focus-visible { fill: #fff; stroke: #007d64; }
+    .matrix-outline .matrix-vertex:active { cursor: grabbing; }
+    .matrix-delete { position: absolute; top: 7px; right: 7px; padding: 2px 6px; font-size: .7rem; pointer-events: auto; }
+    .matrix-actions { display: flex; align-items: center; gap: 6px; font-size: .76rem; color: #bdccd6; }
+    .matrix-actions button { padding: 3px 7px; font-size: .76rem; }
+    #calibrationScrub { margin: 5px 0 0; }
+    #calibrationSlider { display: block; width: 100%; margin: 0; accent-color: #168ec4; }
     #labelTooltip { position: fixed; z-index: 10; max-width: min(360px, calc(100vw - 16px)); padding: 8px 10px; border: 1px solid #9aaab8; border-radius: 6px; background: #eef2f6; color: #17212b; box-shadow: 0 4px 12px #0008; font-size: .8rem; line-height: 1.35; pointer-events: none; }
     #labelTooltip[hidden] { display: none; }
     .timeline { position: relative; z-index: 2; margin-top: 10px; padding: 7px 12px 12px; border: 1px solid #303a46; border-radius: 8px; background: #1a212a; }
@@ -59,6 +84,7 @@
     .nav-icon { display: inline-block; font-size: .65rem; vertical-align: 1px; }
     .readout { margin-left: auto; font-size: .78rem; font-variant-numeric: tabular-nums; color: #c7d7e5; }
     .scrub { --track-name-width: 138px; --progress: 0%; --surface: #e8ecef; position: relative; display: grid; grid-template-columns: var(--track-name-width) minmax(0, 1fr); max-height: min(42vh, 360px); overflow-y: auto; background: var(--surface); border: 1px solid #cbd4dd; border-radius: 4px; }
+    .scrub[hidden] { display: none; }
     .ruler-name, .ruler-surface { position: sticky; top: 0; z-index: 5; height: 22px; background: var(--surface); color: #27323c; }
     .ruler-name { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: center; border-right: 1px solid #96a7b5; font-size: .72rem; font-weight: 700; letter-spacing: .08em; }
     .ruler-surface { grid-column: 2; grid-row: 1; }
@@ -135,16 +161,18 @@
       <label><input type="checkbox" data-camera="external" checked> Esterna</label>
       <label><input type="checkbox" data-camera="aria" checked> Aria</label>
       <button id="resetViews" type="button" aria-label="Ripristina le dimensioni dei video" title="Ripristina le dimensioni dei video">↺ Dimensioni</button>
+      <button id="modeSwitch" type="button">Camera calibration</button>
     </div>
   </div>
 
   <div id="workflow" class="workflow" hidden><span id="workflowText"></span><button id="workflowAdvance" type="button"></button></div>
   <details id="labelsPanel" class="labels-panel"><summary>Label · clicca al frame corrente</summary><div id="palette"></div><div id="labelTooltip" role="tooltip" hidden></div></details>
+  <div id="calibrationPalette" hidden aria-label="Punti di calibrazione"></div>
 
   <div id="videos" class="videos">
-    <section class="camera" data-camera="body"><h2>Body</h2><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas></div></section>
-    <section class="camera" data-camera="external"><h2>Esterna</h2><div class="picture"><video id="externalVideo" muted playsinline preload="metadata"></video><canvas id="externalCanvas" aria-hidden="true"></canvas></div></section>
-    <section class="camera" data-camera="aria"><h2>Aria</h2><div class="picture"><video id="ariaVideo" muted playsinline preload="metadata"></video><canvas id="ariaCanvas" aria-hidden="true"></canvas></div></section>
+    <section class="camera" data-camera="body"><h2>Body</h2><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="body"></div></div></section>
+    <section class="camera" data-camera="external"><h2>Esterna</h2><div class="picture"><video id="externalVideo" muted playsinline preload="metadata"></video><canvas id="externalCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="external"></div></div></section>
+    <section class="camera" data-camera="aria"><h2>Aria</h2><div class="picture"><video id="ariaVideo" muted playsinline preload="metadata"></video><canvas id="ariaCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="aria"></div></div></section>
   </div>
 
   <div id="timeline" class="timeline">
@@ -164,6 +192,7 @@
       <div id="gridLines" aria-hidden="true"></div>
       <div id="playheadLine" aria-hidden="true"></div>
     </div>
+    <div id="calibrationScrub" hidden><input id="calibrationSlider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Posizione in frame per calibrazione"></div>
     <span id="seekState" role="status" aria-live="polite"></span>
     <p id="status" role="status" aria-live="polite">Caricamento catalogo…</p>
   </div>
@@ -192,6 +221,7 @@
 <dialog id="chooseDialog" aria-label="Scegli annotazione"><h2 id="chooseTitle"></h2><div id="chooseList"></div><button id="closeChoose" type="button">Chiudi</button></dialog>
 <script>
   const cameras = ['body', 'external', 'aria'];
+  const calibrationLabels = ['Rhigh', 'Rlow', 'Lhigh', 'Llow', 'ball'];
   const videos = Object.fromEntries(cameras.map(camera => [camera, document.getElementById(camera + 'Video')]));
   const canvases = Object.fromEntries(cameras.map(camera => [camera, document.getElementById(camera + 'Canvas')]));
   const grid = document.getElementById('videos');
@@ -199,6 +229,9 @@
   const sequence = document.getElementById('sequence');
   const selectionSummary = document.getElementById('selectionSummary');
   const slider = document.getElementById('slider');
+  const calibrationSlider = document.getElementById('calibrationSlider');
+  const calibrationPalette = document.getElementById('calibrationPalette');
+  const overlays = Object.fromEntries(cameras.map(camera => [camera, document.querySelector(`.calibration-overlay[data-camera="${camera}"]`)]));
   const scrub = document.getElementById('scrub');
   const ruler = document.getElementById('ruler');
   const gridLines = document.getElementById('gridLines');
@@ -244,9 +277,27 @@
   let activeSubject = '';
   let activeSequence = '';
   let draggingHandle = null;
+  let mode = 'labeler';
+  let calibrationPoints = [];
+  let calibrationRevision = null;
+  let calibrationDirty = false;
+  let calibrationSaving = false;
+  let calibrationProblem = '';
+  let calibrationLoaded = false;
+  let calibrationLoading = false;
+  let cameraDimensions = {};
+  let calibrationEditVersion = 0;
+  let selectedCalibrationLabel = null;
+  let calibrationDragFinished = null;
+  let matrixRegions = [];
+  let matrixDraft = null;
 
   function labelUrl() {
     return `/api/labels?subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`;
+  }
+
+  function calibrationUrl() {
+    return `/api/calibration?subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`;
   }
 
   async function getJson(url) {
@@ -256,10 +307,16 @@
     return data;
   }
 
+  function updateSaveButton() {
+    saveButton.disabled = mode === 'calibration'
+      ? calibrationSaving || (!calibrationDirty && !matrixDraft) || !frames || !calibrationLoaded || !!calibrationProblem
+      : saving || !dirty || !frames || pendingId !== null || !labelSchema?.task || !!labelProblem;
+  }
+
   function markDirty() {
     dirty = true;
     editVersion++;
-    saveButton.disabled = saving || !frames || pendingId !== null || !labelSchema?.task || !!labelProblem;
+    updateSaveButton();
   }
 
   function syncTimes(record) {
@@ -401,13 +458,391 @@
   function renderWorkflow() {
     const levels = workflowLevels();
     const index = levels.indexOf(workflowStage);
-    workflow.hidden = !labelSchema?.task || !!labelProblem || index < 0;
+    workflow.hidden = mode === 'calibration' || !labelSchema?.task || !!labelProblem || index < 0;
     if (workflow.hidden) return;
     const names = {high: 'High', mid: 'Mid', low: 'Low', atomic: 'Atomic'};
     const next = levels[index + 1];
     workflowText.textContent = `Guida ${index + 1}/${levels.length} · ${names[workflowStage]}: aggiungi le label al frame corrente, poi conferma per continuare.`;
     workflowAdvance.textContent = next ? `Conferma e passa a ${names[next]}` : 'Conferma e termina la guida';
     workflowAdvance.disabled = pendingId !== null || !frames;
+  }
+
+  function renderMode() {
+    const calibration = mode === 'calibration';
+    document.getElementById('modeSwitch').textContent = calibration ? 'Labeler' : 'Camera calibration';
+    labelsPanel.hidden = calibration;
+    calibrationPalette.hidden = !calibration;
+    scrub.hidden = calibration;
+    document.getElementById('calibrationScrub').hidden = !calibration;
+    endButton.hidden = calibration;
+    grid.classList.toggle('calibration-placing', calibration && !!selectedCalibrationLabel);
+    renderWorkflow();
+    renderCalibrationPoints();
+    updateSaveButton();
+    if (calibration && frames && !calibrationLoaded) loadCalibration();
+  }
+
+  function renderCalibrationPalette() {
+    calibrationPalette.replaceChildren();
+    grid.classList.toggle('calibration-placing', mode === 'calibration' && !!selectedCalibrationLabel);
+    for (const label of [...calibrationLabels, 'matrix']) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'calibration-chip';
+      chip.textContent = label;
+      chip.classList.toggle('selected', selectedCalibrationLabel === label);
+      chip.setAttribute('aria-pressed', String(selectedCalibrationLabel === label));
+      chip.draggable = !!frames && label !== 'matrix';
+      chip.disabled = !frames || !calibrationLoaded || !!calibrationProblem;
+      chip.addEventListener('dragstart', event => {
+        event.dataTransfer.setData('application/x-exo-calibration', label);
+        event.dataTransfer.effectAllowed = 'copy';
+      });
+      chip.addEventListener('click', () => {
+        selectedCalibrationLabel = selectedCalibrationLabel === label ? null : label;
+        renderCalibrationPalette();
+      });
+      calibrationPalette.append(chip);
+    }
+    if (matrixDraft) {
+      const actions = document.createElement('span');
+      actions.className = 'matrix-actions';
+      actions.textContent = `matrix · ${matrixDraft.camera} · frame ${matrixDraft.frame} · ${matrixDraft.vertices.length} vertici`;
+      const finish = document.createElement('button');
+      finish.type = 'button';
+      finish.textContent = 'Completa poligono';
+      finish.disabled = matrixDraft.vertices.length < 3 || matrixDraft.frame !== Number(slider.value) + 1;
+      finish.addEventListener('click', finishMatrix);
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Annulla';
+      cancel.addEventListener('click', () => {
+        matrixDraft = null;
+        renderCalibrationPalette();
+        renderCalibrationPoints();
+        updateSaveButton();
+      });
+      actions.append(finish, cancel);
+      calibrationPalette.append(actions);
+    }
+  }
+
+  function imageRect(camera) {
+    const picture = overlays[camera].parentElement.getBoundingClientRect();
+    const video = videos[camera];
+    if (!picture.width || !picture.height || !video.videoWidth || !video.videoHeight) return null;
+    const scale = Math.min(picture.width / video.videoWidth, picture.height / video.videoHeight);
+    const width = video.videoWidth * scale;
+    const height = video.videoHeight * scale;
+    return {left: picture.left + (picture.width - width) / 2,
+      top: picture.top + (picture.height - height) / 2, width, height};
+  }
+
+  function calibrationCoords(camera, clientX, clientY, clamp = false) {
+    const rect = imageRect(camera);
+    const dimensions = cameraDimensions[camera];
+    if (!rect || !dimensions) return null;
+    let u = (clientX - rect.left) / rect.width;
+    let v = (clientY - rect.top) / rect.height;
+    if (!clamp && (u < 0 || u > 1 || v < 0 || v > 1)) return null;
+    u = Math.max(0, Math.min(1, u));
+    v = Math.max(0, Math.min(1, v));
+    if (camera === 'body') { u = 1 - u; v = 1 - v; }
+    return {x: Math.round(u * (dimensions.width - 1)), y: Math.round(v * (dimensions.height - 1))};
+  }
+
+  function markCalibrationDirty() {
+    calibrationDirty = true;
+    calibrationEditVersion++;
+    updateSaveButton();
+  }
+
+  function wasCalibrationDragClick(event, camera) {
+    return event.isTrusted && calibrationDragFinished?.camera === camera
+      && performance.now() - calibrationDragFinished.at < 250
+      && Math.hypot(event.clientX - calibrationDragFinished.x,
+        event.clientY - calibrationDragFinished.y) < 6;
+  }
+
+  async function placeCalibrationPoint(camera, label, coords) {
+    const turn = loading;
+    const previousSelection = selectedCalibrationLabel;
+    if (!await exactFrame() || turn !== loading || mode !== 'calibration') {
+      if (turn === loading) message('Attendi che le tre camere mostrino lo stesso frame.', 'error');
+      return;
+    }
+    const point = {camera, frame: Number(slider.value) + 1, label, ...coords};
+    const previous = calibrationPoints.find(item => item.camera === camera && item.frame === point.frame && item.label === label);
+    if (previous) Object.assign(previous, point);
+    else calibrationPoints.push(point);
+    markCalibrationDirty();
+    renderCalibrationPoints();
+    const next = calibrationLabels[calibrationLabels.indexOf(label) + 1] || null;
+    const advance = selectedCalibrationLabel === previousSelection;
+    if (advance) {
+      selectedCalibrationLabel = next;
+      renderCalibrationPalette();
+    }
+    message(`${label}: ${camera}, frame ${point.frame}, coordinate (${point.x}, ${point.y}).${advance && next ? ` Prossima: ${next}.` : ''}`);
+  }
+
+  function calibrationDisplayCoords(camera, coords) {
+    const rect = imageRect(camera);
+    const picture = overlays[camera].getBoundingClientRect();
+    const dimensions = cameraDimensions[camera];
+    let u = coords.x / Math.max(1, dimensions.width - 1);
+    let v = coords.y / Math.max(1, dimensions.height - 1);
+    if (camera === 'body') { u = 1 - u; v = 1 - v; }
+    return {x: rect.left - picture.left + u * rect.width,
+      y: rect.top - picture.top + v * rect.height, u};
+  }
+
+  function positionCalibrationMarker(marker, camera, coords) {
+    const {x, y, u} = calibrationDisplayCoords(camera, coords);
+    marker.style.left = `${x}px`;
+    marker.style.top = `${y}px`;
+    marker.classList.toggle('right', u > 0.85);
+  }
+
+  function renderMatrix(camera, frame) {
+    const saved = matrixRegions.find(item => item.camera === camera && item.frame === frame);
+    const draft = matrixDraft?.camera === camera && matrixDraft.frame === frame ? matrixDraft : null;
+    if (!saved && !draft) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('matrix-outline');
+    const displayPoints = vertices => vertices.map(vertex => {
+      const {x, y} = calibrationDisplayCoords(camera, vertex);
+      return `${x},${y}`;
+    }).join(' ');
+    const draw = (vertices, tag) => {
+      const shape = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      shape.setAttribute('points', displayPoints(vertices));
+      svg.append(shape);
+      vertices.forEach((vertex, index) => {
+        const {x, y} = calibrationDisplayCoords(camera, vertex);
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', x);
+        dot.setAttribute('cy', y);
+        dot.setAttribute('r', tag === 'polygon' ? 5 : 3);
+        if (tag === 'polygon' && !draft) {
+          dot.classList.add('matrix-vertex');
+          dot.setAttribute('tabindex', '0');
+          dot.setAttribute('role', 'button');
+          const updateTitle = () => dot.setAttribute('aria-label',
+            `Vertice ${index + 1} di matrix, camera ${camera}, frame ${frame}, x ${vertex.x}, y ${vertex.y}. Trascina o usa le frecce per spostarlo.`);
+          updateTitle();
+          const show = coords => {
+            const temporary = vertices.map((item, i) => i === index ? coords : item);
+            shape.setAttribute('points', displayPoints(temporary));
+            const position = calibrationDisplayCoords(camera, coords);
+            dot.setAttribute('cx', position.x);
+            dot.setAttribute('cy', position.y);
+          };
+          const commit = coords => {
+            if (vertices.some((item, i) => i !== index && item.x === coords.x && item.y === coords.y)) {
+              message('I vertici di matrix devono essere distinti.', 'warn');
+              show(vertex);
+              return;
+            }
+            const temporary = vertices.map((item, i) => i === index ? coords : item);
+            const area = temporary.reduce((sum, item, i) => {
+              const next = temporary[(i + 1) % temporary.length];
+              return sum + item.x * next.y - next.x * item.y;
+            }, 0);
+            if (!area) {
+              message('Il poligono matrix deve racchiudere un’area.', 'warn');
+              show(vertex);
+              return;
+            }
+            if (vertex.x !== coords.x || vertex.y !== coords.y) {
+              Object.assign(vertex, coords);
+              markCalibrationDirty();
+              message(`matrix · ${camera} · frame ${frame}: vertice ${index + 1} a (${vertex.x}, ${vertex.y}).`);
+            }
+            show(vertex);
+            updateTitle();
+          };
+          let dragStart = null;
+          let moved = false;
+          dot.addEventListener('pointerdown', event => {
+            if (event.button !== 0) return;
+            dragStart = {x: event.clientX, y: event.clientY};
+            moved = false;
+            dot.setPointerCapture(event.pointerId);
+          });
+          dot.addEventListener('pointermove', event => {
+            if (!dragStart || !dot.hasPointerCapture(event.pointerId)) return;
+            if (!moved && Math.hypot(event.clientX - dragStart.x, event.clientY - dragStart.y) < 3) return;
+            moved = true;
+            const coords = calibrationCoords(camera, event.clientX, event.clientY, true);
+            if (coords) show(coords);
+          });
+          dot.addEventListener('pointerup', event => {
+            if (!dragStart) return;
+            dragStart = null;
+            if (!moved) return;
+            calibrationDragFinished = {camera, x: event.clientX, y: event.clientY, at: performance.now()};
+            const coords = calibrationCoords(camera, event.clientX, event.clientY, true);
+            if (coords) commit(coords);
+            else show(vertex);
+          });
+          dot.addEventListener('pointercancel', () => { dragStart = null; show(vertex); });
+          dot.addEventListener('click', event => event.stopPropagation());
+          dot.addEventListener('keydown', event => {
+            const delta = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]}[event.key];
+            if (!delta) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const dimensions = cameraDimensions[camera];
+            commit({x: Math.max(0, Math.min(dimensions.width - 1, vertex.x + delta[0])),
+              y: Math.max(0, Math.min(dimensions.height - 1, vertex.y + delta[1]))});
+          });
+        }
+        svg.append(dot);
+      });
+    };
+    if (saved) draw(saved.vertices, 'polygon');
+    if (draft) draw(draft.vertices, 'polyline');
+    overlays[camera].append(svg);
+    if (saved) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'matrix-delete';
+      remove.textContent = '× matrix';
+      remove.title = `Elimina matrix · ${camera} · frame ${frame}`;
+      remove.addEventListener('click', event => {
+        event.stopPropagation();
+        if (!window.confirm(`Eliminare matrix dalla camera ${camera} al frame ${frame}?`)) return;
+        matrixRegions = matrixRegions.filter(item => item !== saved);
+        markCalibrationDirty();
+        renderCalibrationPoints();
+      });
+      overlays[camera].append(remove);
+    }
+  }
+
+  async function addMatrixVertex(camera, coords) {
+    const turn = loading;
+    if (!await exactFrame() || turn !== loading || mode !== 'calibration') {
+      if (turn === loading) message('Attendi che le tre camere mostrino lo stesso frame.', 'error');
+      return;
+    }
+    const frame = Number(slider.value) + 1;
+    if (matrixDraft && (matrixDraft.camera !== camera || matrixDraft.frame !== frame)) {
+      message(`Completa o annulla prima matrix su ${matrixDraft.camera}, frame ${matrixDraft.frame}.`, 'warn');
+      return;
+    }
+    if (!matrixDraft) matrixDraft = {camera, frame, vertices: []};
+    if (matrixDraft.vertices.some(vertex => vertex.x === coords.x && vertex.y === coords.y)) {
+      message('Questo vertice è già presente nel poligono.', 'warn');
+      return;
+    }
+    matrixDraft.vertices.push(coords);
+    renderCalibrationPalette();
+    renderCalibrationPoints();
+    updateSaveButton();
+    message(`matrix · ${camera} · frame ${frame}: ${matrixDraft.vertices.length} vertici. Completa il poligono da 3 vertici.`);
+  }
+
+  function finishMatrix() {
+    if (!matrixDraft || matrixDraft.vertices.length < 3) return;
+    if (matrixDraft.frame !== Number(slider.value) + 1 || playing) {
+      message(`Torna al frame ${matrixDraft.frame} e metti in pausa prima di completare matrix.`, 'warn');
+      return;
+    }
+    const vertices = matrixDraft.vertices;
+    const area = vertices.reduce((sum, vertex, i) => {
+      const next = vertices[(i + 1) % vertices.length];
+      return sum + vertex.x * next.y - next.x * vertex.y;
+    }, 0);
+    if (!area) { message('Il poligono matrix deve racchiudere un’area.', 'warn'); return; }
+    const {camera, frame} = matrixDraft;
+    const previous = matrixRegions.find(item => item.camera === camera && item.frame === frame);
+    if (previous) previous.vertices = vertices;
+    else matrixRegions.push({camera, frame, vertices});
+    matrixDraft = null;
+    markCalibrationDirty();
+    renderCalibrationPalette();
+    renderCalibrationPoints();
+    message(`matrix salvata in bozza: ${camera}, frame ${frame}, ${vertices.length} vertici. Premi Salva per scriverla nel JSON.`);
+  }
+
+  function renderCalibrationPoints() {
+    cameras.forEach(camera => overlays[camera].replaceChildren());
+    if (mode !== 'calibration' || !frames) return;
+    const frame = Number(slider.value) + 1;
+    for (const camera of cameras) {
+      if (!imageRect(camera) || !cameraDimensions[camera]) continue;
+      renderMatrix(camera, frame);
+      for (const point of calibrationPoints.filter(item => item.camera === camera && item.frame === frame)) {
+        const marker = document.createElement('button');
+        marker.type = 'button';
+        marker.className = 'calibration-marker';
+        positionCalibrationMarker(marker, camera, point);
+        marker.textContent = point.label;
+        function updateMarkerTitle() {
+          marker.title = `${point.label} · frame ${frame} · ${camera} · (${point.x}, ${point.y}). Trascina per spostare; clicca per eliminare.`;
+          marker.setAttribute('aria-label', marker.title);
+        }
+        updateMarkerTitle();
+        let dragStart = null;
+        let moved = false;
+        marker.addEventListener('pointerdown', event => {
+          if (event.button !== 0) return;
+          dragStart = {x: event.clientX, y: event.clientY};
+          moved = false;
+          marker.setPointerCapture(event.pointerId);
+        });
+        marker.addEventListener('pointermove', event => {
+          if (!dragStart || !marker.hasPointerCapture(event.pointerId)) return;
+          if (!moved && Math.hypot(event.clientX - dragStart.x, event.clientY - dragStart.y) < 3) return;
+          moved = true;
+          const coords = calibrationCoords(camera, event.clientX, event.clientY, true);
+          if (coords) positionCalibrationMarker(marker, camera, coords);
+        });
+        marker.addEventListener('pointerup', event => {
+          if (!dragStart) return;
+          dragStart = null;
+          if (!moved) return;
+          calibrationDragFinished = {camera, x: event.clientX, y: event.clientY, at: performance.now()};
+          const coords = calibrationCoords(camera, event.clientX, event.clientY, true);
+          if (!coords) { renderCalibrationPoints(); return; }
+          if (point.x !== coords.x || point.y !== coords.y) {
+            Object.assign(point, coords);
+            markCalibrationDirty();
+          }
+          positionCalibrationMarker(marker, camera, point);
+          updateMarkerTitle();
+          message(`${point.label}: ${camera}, frame ${frame}, coordinate (${point.x}, ${point.y}).`);
+        });
+        marker.addEventListener('pointercancel', () => {
+          dragStart = null;
+          renderCalibrationPoints();
+        });
+        marker.addEventListener('click', event => {
+          event.stopPropagation();
+          if (wasCalibrationDragClick(event, camera)) return;
+          if (!window.confirm(`Eliminare ${point.label} dalla camera ${camera} al frame ${frame}?`)) return;
+          calibrationPoints = calibrationPoints.filter(item => item !== point);
+          markCalibrationDirty();
+          renderCalibrationPoints();
+        });
+        overlays[camera].append(marker);
+      }
+    }
+  }
+
+  async function dropCalibration(event, camera) {
+    event.preventDefault();
+    const label = event.dataTransfer.getData('application/x-exo-calibration');
+    if (mode !== 'calibration' || !frames || !calibrationLoaded || calibrationProblem
+        || !calibrationLabels.includes(label)) return;
+    const coords = calibrationCoords(camera, event.clientX, event.clientY);
+    if (!coords) {
+      message('Rilascia la label dentro l’immagine del video, non sulle bande nere.', 'warn');
+      return;
+    }
+    await placeCalibrationPoint(camera, label, coords);
   }
 
   function renderPalette() {
@@ -588,6 +1023,8 @@
   function updateReadout(frame) {
     readout.textContent = frames ? `${playing ? '≈ ' : ''}Frame ${frame + 1} / ${frames}` : 'Frame —';
     slider.setAttribute('aria-valuetext', frames ? `${playing ? 'Circa frame' : 'Frame'} ${frame + 1} di ${frames}` : 'Nessun frame');
+    calibrationSlider.value = frame;
+    calibrationSlider.setAttribute('aria-valuetext', frames ? `${playing ? 'Circa frame' : 'Frame'} ${frame + 1} di ${frames}` : 'Nessun frame');
     scrub.style.setProperty('--progress', `${frames > 1 ? frame / (frames - 1) * 100 : 0}%`);
   }
 
@@ -652,6 +1089,7 @@
     seekState.textContent = '';
     clearTimeout(seekTimeout);
     grid.classList.remove('seeking');
+    renderCalibrationPoints();
     const resolve = finishSeek;
     finishSeek = null;
     resolve(true);
@@ -669,11 +1107,13 @@
     });
     slider.value = frame;
     updateReadout(frame);
+    if (matrixDraft) renderCalibrationPalette();
     if (!grid.classList.contains('frozen')) cameras.forEach(camera => {
       const canvas = canvases[camera];
       canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
     });
     grid.classList.add('frozen', 'seeking');
+    renderCalibrationPoints();
     seekState.textContent = 'Aggiornamento dei tre frame…';
     cancelSeek();
     seekDone = new Promise(resolve => { finishSeek = resolve; });
@@ -729,6 +1169,7 @@
       if (request !== playVersion) return;
       seekState.textContent = '';
       grid.classList.remove('frozen');
+    renderCalibrationPoints();
       requestAnimationFrame(tick);
     } catch (error) {
       if (request !== playVersion) return;
@@ -787,11 +1228,25 @@
     revision = null;
     dirty = false;
     saving = false;
+    calibrationPoints = [];
+    calibrationRevision = null;
+    calibrationDirty = false;
+    calibrationSaving = false;
+    calibrationProblem = '';
+    calibrationLoaded = false;
+    calibrationLoading = false;
+    cameraDimensions = {};
+    selectedCalibrationLabel = null;
+    calibrationDragFinished = null;
+    matrixRegions = [];
+    matrixDraft = null;
     pendingId = null;
     endButton.disabled = true;
     saveButton.disabled = true;
     palette.textContent = '';
     renderAnnotations();
+    renderCalibrationPalette();
+    renderCalibrationPoints();
     grid.classList.add('frozen');
     grid.classList.remove('seeking');
     seekState.textContent = '';
@@ -801,6 +1256,7 @@
       canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
     });
     controls.forEach(control => control.disabled = true);
+    calibrationSlider.disabled = true;
     updateReadout(0);
     message('Preparazione dei video… La prima apertura può richiedere alcuni secondi.');
     try {
@@ -808,8 +1264,6 @@
       const [data, schema, labelResponse] = await Promise.all([
         getJson(`/api/sequence?${query}`), getJson(`/api/schema?${query}`), fetch(`/api/labels?${query}`)]);
       const saved = await labelResponse.json();
-      if (!labelResponse.ok && labelResponse.status !== 409)
-        throw new Error(saved.error || `HTTP ${labelResponse.status}`);
       if (turn !== loading) return;
       const metadata = cameras.map(camera => data.metadata[camera]);
       if (metadata.some(item => item.codec !== 'h264' || Math.abs(item.fps - 30) > 0.01 || item.frames < 1))
@@ -817,14 +1271,17 @@
       if (cameras.some(camera => !videos[camera].requestVideoFrameCallback))
         throw new Error('Questo browser non permette di verificare il frame mostrato. Usa una versione aggiornata di Chrome, Edge o Firefox.');
       frames = Math.min(...metadata.map(item => item.frames));
+      cameraDimensions = data.metadata;
       labelSchema = schema;
-      labelProblem = labelResponse.ok ? '' : saved.error;
+      labelProblem = labelResponse.ok ? '' : saved.error || `HTTP ${labelResponse.status}`;
       annotations = labelResponse.ok ? saved.data.annotations : [];
       workflowStage = labelResponse.ok ? saved.workflow_stage : null;
       revision = labelResponse.ok ? saved.revision : null;
       if (workflowStage !== 'free' && !labelProblem && labelSchema.task) labelsPanel.open = true;
       renderPalette();
+      renderCalibrationPalette();
       renderAnnotations();
+      renderMode();
       await Promise.all(cameras.map(camera => new Promise((resolve, reject) => {
         const video = videos[camera];
         video.onloadedmetadata = resolve;
@@ -834,15 +1291,20 @@
       })));
       if (turn !== loading) return;
       slider.max = frames - 1;
+      calibrationSlider.max = frames - 1;
       updateRuler();
       controls.forEach(control => control.disabled = false);
+      calibrationSlider.disabled = false;
+      updateSaveButton();
       seek(0);
       const counts = metadata.map(item => item.frames);
       const warnings = saved.warnings || [];
       const lengthWarning = new Set(counts).size > 1
         ? `Lunghezze diverse: body ${counts[0]}, esterna ${counts[1]}, Aria ${counts[2]} frame. La timeline si ferma al più corto.` : '';
-      message(labelProblem || [lengthWarning, ...warnings].filter(Boolean).join(' · '),
-        labelProblem || lengthWarning || warnings.length ? 'warn' : '');
+      const problem = mode === 'calibration'
+        ? calibrationLoading ? 'Caricamento punti di calibrazione…' : calibrationProblem : labelProblem;
+      message(problem || [lengthWarning, ...warnings].filter(Boolean).join(' · '),
+        problem || lengthWarning || warnings.length ? 'warn' : '');
     } catch (error) {
       if (turn === loading) {
         frames = 0;
@@ -855,7 +1317,7 @@
   async function saveLabels() {
     if (!dirty || saving || pendingId !== null || !frames || !labelSchema?.task || labelProblem) return;
     saving = true;
-    saveButton.disabled = true;
+    updateSaveButton();
     const turn = loading;
     const version = editVersion;
     const document = {schema_version: labelSchema.schema_version, subject: subject.value,
@@ -869,7 +1331,7 @@
       revision = result.revision;
       saving = false;
       dirty = editVersion !== version;
-      saveButton.disabled = !dirty || pendingId !== null;
+      updateSaveButton();
       const confirmation = dirty ? 'Salvataggio completato; ci sono nuove modifiche da salvare.'
         : `Annotazioni salvate in ${subject.value}/label/${sequence.value}.json`;
       message([confirmation, ...(result.warnings || [])].join(' · '), result.warnings?.length ? 'warn' : '');
@@ -877,8 +1339,66 @@
       if (turn !== loading) return;
       saving = false;
       message(error.message, 'error');
-      saveButton.disabled = pendingId !== null;
+      updateSaveButton();
     }
+  }
+
+  async function saveCalibration() {
+    if (matrixDraft) {
+      message(`Completa o annulla prima matrix su ${matrixDraft.camera}, frame ${matrixDraft.frame}.`, 'warn');
+      return;
+    }
+    if (!calibrationDirty || calibrationSaving || !frames || !calibrationLoaded || calibrationProblem) return;
+    calibrationSaving = true;
+    updateSaveButton();
+    const turn = loading;
+    const version = calibrationEditVersion;
+    const document = {subject: subject.value, sequence: sequence.value, fps: 30,
+      coordinate_space: 'source_pixels', points: calibrationPoints, matrix: matrixRegions};
+    try {
+      const response = await fetch(calibrationUrl(), {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({revision: calibrationRevision, data: document})});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      if (turn !== loading) return;
+      calibrationRevision = result.revision;
+      calibrationSaving = false;
+      calibrationDirty = calibrationEditVersion !== version;
+      updateSaveButton();
+      if (mode === 'calibration') message(calibrationDirty ? 'Calibrazione salvata; ci sono nuove modifiche da salvare.'
+        : 'Calibrazione salvata.');
+    } catch (error) {
+      if (turn !== loading) return;
+      calibrationSaving = false;
+      updateSaveButton();
+      if (mode === 'calibration') message(error.message, 'error');
+    }
+  }
+
+  async function loadCalibration() {
+    if (calibrationLoaded || calibrationLoading || !frames) return;
+    calibrationLoading = true;
+    renderCalibrationPalette();
+    if (mode === 'calibration') message('Caricamento punti di calibrazione…');
+    const turn = loading;
+    try {
+      const response = await fetch(calibrationUrl());
+      const saved = await response.json();
+      if (turn !== loading) return;
+      calibrationProblem = response.ok ? '' : saved.error || `HTTP ${response.status}`;
+      calibrationPoints = response.ok ? saved.data.points : [];
+      matrixRegions = response.ok ? saved.data.matrix || [] : [];
+      calibrationRevision = response.ok ? saved.revision : null;
+    } catch (error) {
+      if (turn !== loading) return;
+      calibrationProblem = `Calibrazione non caricabile: ${error.message}`;
+    }
+    calibrationLoading = false;
+    calibrationLoaded = true;
+    renderCalibrationPalette();
+    renderCalibrationPoints();
+    updateSaveButton();
+    if (mode === 'calibration') message(calibrationProblem, calibrationProblem ? 'warn' : '');
   }
 
   async function closeInterval() {
@@ -908,10 +1428,11 @@
     });
     grid.classList.toggle('one', count === 1);
     grid.classList.toggle('two', count === 2);
+    renderCalibrationPoints();
   }
 
   function confirmSequenceChange() {
-    if (!dirty || window.confirm('Ci sono annotazioni non salvate. Vuoi cambiare sequenza e perderle?')) return true;
+    if ((!dirty && !calibrationDirty && !matrixDraft) || window.confirm('Ci sono modifiche non salvate. Vuoi cambiare sequenza e perderle?')) return true;
     subject.value = activeSubject;
     populate(sequence, catalog[activeSubject]);
     sequence.value = activeSequence;
@@ -924,12 +1445,12 @@
     loadSequence();
   });
   sequence.addEventListener('change', () => { if (confirmSequenceChange()) loadSequence(); });
-  window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
-  window.addEventListener('resize', renderAnnotations);
+  window.addEventListener('beforeunload', event => { if (dirty || calibrationDirty || matrixDraft) { event.preventDefault(); event.returnValue = ''; } });
+  window.addEventListener('resize', () => { renderAnnotations(); renderCalibrationPoints(); });
   document.getElementById('previous').addEventListener('click', () => seek(Number(slider.value) - 1));
   document.getElementById('next').addEventListener('click', () => seek(Number(slider.value) + 1));
   endButton.addEventListener('click', closeInterval);
-  saveButton.addEventListener('click', saveLabels);
+  saveButton.addEventListener('click', () => mode === 'calibration' ? saveCalibration() : saveLabels());
   workflowAdvance.addEventListener('click', () => {
     const levels = workflowLevels();
     const index = levels.indexOf(workflowStage);
@@ -1001,6 +1522,38 @@
   });
   document.getElementById('closeHelp').addEventListener('click', () => helpDialog.close());
   slider.addEventListener('input', () => seek(slider.value));
+  calibrationSlider.addEventListener('input', () => seek(calibrationSlider.value));
+  document.getElementById('modeSwitch').addEventListener('click', () => {
+    mode = mode === 'labeler' ? 'calibration' : 'labeler';
+    renderMode();
+    message(mode === 'calibration' ? calibrationProblem : labelProblem,
+      (mode === 'calibration' ? calibrationProblem : labelProblem) ? 'warn' : '');
+  });
+  cameras.forEach(camera => {
+    const picture = overlays[camera].parentElement;
+    picture.addEventListener('dragover', event => {
+      if (mode === 'calibration' && frames
+          && Array.from(event.dataTransfer.types).includes('application/x-exo-calibration')) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }
+    });
+    picture.addEventListener('drop', event => dropCalibration(event, camera));
+    picture.addEventListener('click', event => {
+      if (mode !== 'calibration' || !frames || !calibrationLoaded || calibrationProblem
+          || !selectedCalibrationLabel || event.target.closest('.calibration-marker')
+          || wasCalibrationDragClick(event, camera)) return;
+      const coords = calibrationCoords(camera, event.clientX, event.clientY);
+      if (!coords) {
+        message('Clicca dentro l’immagine del video, non sulle bande nere.', 'warn');
+        return;
+      }
+      if (selectedCalibrationLabel === 'matrix') addMatrixVertex(camera, coords);
+      else placeCalibrationPoint(camera, selectedCalibrationLabel, coords);
+    });
+  });
+  const calibrationResize = new ResizeObserver(renderCalibrationPoints);
+  cameras.forEach(camera => calibrationResize.observe(overlays[camera].parentElement));
   cameras.forEach(camera => {
     const video = videos[camera];
     if (video.requestVideoFrameCallback) {

@@ -53,6 +53,40 @@ riproduzione l'indicazione `≈ Frame` è approssimata: i tre decoder del browse
 possono presentare frame vicini in istanti diversi. La corrispondenza fra gli
 istanti reali delle camere dipende dalla sincronizzazione dei file originali.
 
+**Camera calibration**, accanto a **↺ Dimensioni**, apre una modalità per
+marcare punti sui frame. Le cinque voci `Rhigh`, `Rlow`, `Lhigh`, `Llow` e
+`ball` si possono trascinare sull'immagine di una delle tre camere, oppure
+selezionare con un clic e poi piazzare con un clic sull'immagine. Un altro
+clic sulla voce la deseleziona. Dopo ogni punto piazzato viene selezionata
+automaticamente la voce successiva nell'ordine mostrato; dopo `ball` la
+selezione si chiude. Un pallino con il nome resta visibile su quel
+frame. Le bande nere non accettano punti. Trascina un pallino per spostarlo;
+cliccalo per eliminarlo. Un nuovo punto della stessa voce sulla stessa camera
+e sullo stesso frame aggiorna quello esistente. I punti sono mostrati sui frame
+verificati in pausa. Lo slider semplice e le frecce
+permettono di scegliere altri frame; il contatore **Frame x / y** resta
+visibile. **Labeler** torna alle annotazioni temporali.
+
+La voce **matrix** disegna l'area della matrice di calibrazione: selezionala,
+clicca almeno tre vertici sull'immagine e premi **Completa poligono**. Durante
+il disegno puoi usare **Annulla**. Un nuovo poligono sulla stessa camera e sullo
+stesso frame sostituisce quello precedente. Trascina i vertici del poligono
+completato per rifinirlo, oppure selezionali con Tab e usa le frecce per
+spostarli di un pixel; **× matrix** elimina il poligono. Se il
+disegno resta incompleto, **Salva** chiede di completarlo o annullarlo.
+
+**Salva** in questa modalità scrive
+`s*/camera_calibration/<nome_sequenza>.json`, separato dalle annotazioni del
+labeler. Ogni punto contiene `camera`, `frame`, `label`, `x` e `y`. I frame
+partono da 1; `x` e `y` sono pixel interi del video originale, con origine
+in alto a sinistra. Per Body vengono invertiti entrambi gli assi rispetto
+alla vista ruotata nell'app. La voce `matrix` contiene i poligoni con `camera`,
+`frame` e `vertices` (`x`, `y` per ogni vertice), nello stesso sistema di
+coordinate. Il JSON dichiara `coordinate_space: source_pixels`.
+I punti salvati vengono ricaricati aprendo la
+sequenza. Un file modificato da un altro utente nel frattempo non viene
+sovrascritto.
+
 Aprire **Label** e cliccare una voce per iniziare l'annotazione al frame
 visualizzato. Passando il mouse o usando la tastiera su una voce compare la
 definizione presente in `label_schema.json`; per le label mid e low, prive di

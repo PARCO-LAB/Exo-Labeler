@@ -73,9 +73,84 @@ class ViewerTest(unittest.TestCase):
         self.assertEqual(set(data["videos"]), {"body", "external", "aria"})
         self.assertEqual([data["metadata"][camera]["frames"] for camera in data["videos"]], [120] * 3)
         self.assertEqual(data["metadata"]["body"]["fps"], 30)
+        self.assertEqual((data["metadata"]["body"]["width"], data["metadata"]["body"]["height"]), (64, 48))
         with self.assertRaises(HTTPError) as error:
             self.request("/api/sequence?subject=s6&sequence=curl_0")
         self.assertEqual(error.exception.code, 404)
+
+    def test_camera_calibration_save_and_validation(self):
+        url = "/api/calibration?subject=s5&sequence=curl_0"
+        with self.request(url) as response:
+            current = json.load(response)
+        self.assertIsNone(current["revision"])
+        self.assertEqual(current["data"], {"subject": "s5", "sequence": "curl_0", "fps": 30,
+                                           "coordinate_space": "source_pixels", "points": [], "matrix": []})
+        document = {**current["data"], "points": [
+            {"camera": "body", "frame": 1, "label": "Rhigh", "x": 63, "y": 47},
+            {"camera": "external", "frame": 120, "label": "ball", "x": 0, "y": 0},
+            {"camera": "aria", "frame": 20, "label": "Llow", "x": 12, "y": 25},
+        ], "matrix": [{"camera": "body", "frame": 1,
+                       "vertices": [{"x": 0, "y": 0}, {"x": 63, "y": 0}, {"x": 63, "y": 47}, {"x": 0, "y": 47}]}]}
+        with self.request(url, method="POST", data={"revision": None, "data": document}) as response:
+            saved = json.load(response)
+        path = self.root / "s5/camera_calibration/curl_0.json"
+        self.assertEqual(json.loads(path.read_text()), document)
+        with self.request(url) as response:
+            reopened = json.load(response)
+        self.assertEqual(reopened, {"data": document, "revision": saved["revision"]})
+        with self.assertRaises(HTTPError) as error:
+            self.request(url, method="POST", data={"revision": None, "data": document})
+        self.assertEqual(error.exception.code, 409)
+        for change in ({"camera": "unknown"}, {"label": "sync"}, {"frame": 121},
+                       {"x": 64}, {"y": 48}, {"x": 1.5}, {"frame": True}):
+            bad = json.loads(json.dumps(document))
+            bad["points"][0].update(change)
+            with self.assertRaises(HTTPError) as error:
+                self.request(url, method="POST", data={"revision": saved["revision"], "data": bad})
+            self.assertEqual(error.exception.code, 400, change)
+        bad = json.loads(json.dumps(document))
+        bad["points"].append(dict(bad["points"][0]))
+        with self.assertRaises(HTTPError) as error:
+            self.request(url, method="POST", data={"revision": saved["revision"], "data": bad})
+        self.assertEqual(error.exception.code, 400)
+        for change in ({"camera": "unknown"}, {"frame": 121}, {"vertices": []},
+                       {"vertices": [{"x": 0, "y": 0}, {"x": 1, "y": 1}, {"x": 2, "y": 2}]},
+                       {"vertices": [{"x": 0, "y": 0}, {"x": 64, "y": 0}, {"x": 0, "y": 1}]}):
+            bad = json.loads(json.dumps(document))
+            bad["matrix"][0].update(change)
+            with self.assertRaises(HTTPError) as error:
+                self.request(url, method="POST", data={"revision": saved["revision"], "data": bad})
+            self.assertEqual(error.exception.code, 400, change)
+        bad = json.loads(json.dumps(document))
+        bad["matrix"].append(dict(bad["matrix"][0]))
+        with self.assertRaises(HTTPError) as error:
+            self.request(url, method="POST", data={"revision": saved["revision"], "data": bad})
+        self.assertEqual(error.exception.code, 400)
+        self.assertEqual(json.loads(path.read_text()), document)
+        document["points"] = []
+        document["matrix"] = []
+        with self.request(url, method="POST", data={"revision": saved["revision"], "data": document}):
+            pass
+        with self.request(url) as response:
+            self.assertEqual(json.load(response)["data"]["points"], [])
+        legacy = {key: value for key, value in document.items() if key != "matrix"}
+        path.write_text(json.dumps(legacy))
+        with self.request(url) as response:
+            self.assertEqual(json.load(response)["data"], legacy)
+        outside = self.root / "outside-calibration.json"
+        outside.write_text("untouched")
+        link = self.root / "s5/camera_calibration/curl_1.json"
+        link.symlink_to(outside)
+        linked_url = "/api/calibration?subject=s5&sequence=curl_1"
+        with self.assertRaises(HTTPError) as error:
+            self.request(linked_url)
+        self.assertEqual(error.exception.code, 409)
+        with self.assertRaises(HTTPError) as error:
+            self.request(linked_url, method="POST", data={"revision": None,
+                         "data": {**document, "sequence": "curl_1"}})
+        self.assertEqual(error.exception.code, 400)
+        self.assertEqual(outside.read_text(), "untouched")
+        link.unlink()
 
     def test_annotation_schema_and_save(self):
         task, choices = label_choices("drilling_vertical_0")

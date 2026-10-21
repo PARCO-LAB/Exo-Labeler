@@ -91,6 +91,258 @@ def main():
         assert chrome["trackColor"] == chrome["rulerColor"], chrome
         assert chrome["compactAbsent"] and chrome["buttonHeight"] <= 28, chrome
         assert chrome["titles"] == ["Body", "Esterna", "Aria"] and chrome["titleFont"] < 13, chrome
+        calibration_mode = webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('modeSwitch').click();"
+            "return {button:document.getElementById('modeSwitch').textContent,"
+            "labelerHidden:document.getElementById('labelsPanel').hidden,"
+            "timelineHidden:document.getElementById('scrub').hidden,"
+            "sliderVisible:!document.getElementById('calibrationScrub').hidden,"
+            "endHidden:document.getElementById('endLabel').hidden,"
+            "chips:[...document.querySelectorAll('.calibration-chip')].map(x=>x.textContent),"
+            "readout:document.getElementById('readout').textContent}", "args": []})
+        assert calibration_mode == {"button": "Labeler", "labelerHidden": True, "timelineHidden": True,
+                                    "sliderVisible": True, "endHidden": True,
+                                    "chips": ["Rhigh", "Rlow", "Lhigh", "Llow", "ball", "matrix"],
+                                    "readout": "Frame 1 / 120"}, calibration_mode
+        for _ in range(50):
+            calibration_ready = webdriver(endpoint + "/execute/sync", {"script":
+                "return [...document.querySelectorAll('.calibration-chip')].every(x=>!x.disabled)", "args": []})
+            if calibration_ready:
+                break
+            time.sleep(.1)
+        assert calibration_ready
+
+        def drop_point(camera, label, u, v):
+            return webdriver(endpoint + "/execute/sync", {"script":
+                "let [camera,label,u,v]=arguments;"
+                "let chip=[...document.querySelectorAll('.calibration-chip')].find(x=>x.textContent===label);"
+                "let picture=document.querySelector(`.camera[data-camera='${camera}'] .picture`);"
+                "let video=document.getElementById(camera+'Video'), box=picture.getBoundingClientRect();"
+                "let scale=Math.min(box.width/video.videoWidth,box.height/video.videoHeight);"
+                "let x=Math.round(box.left+(box.width-video.videoWidth*scale)/2+u*video.videoWidth*scale);"
+                "let y=Math.round(box.top+(box.height-video.videoHeight*scale)/2+v*video.videoHeight*scale);"
+                "let transfer=new DataTransfer();"
+                "chip.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}));"
+                "let over=new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer,clientX:x,clientY:y});"
+                "picture.dispatchEvent(over);"
+                "picture.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:transfer,clientX:x,clientY:y}));"
+                "return {accepted:over.defaultPrevented,data:transfer.getData('application/x-exo-calibration')}",
+                "args": [camera, label, u, v]})
+
+        assert drop_point("body", "Rhigh", .25, .25) == {"accepted": True, "data": "Rhigh"}
+        for _ in range(50):
+            selected_after_drop = webdriver(endpoint + "/execute/sync", {"script":
+                "return document.querySelector('.calibration-chip[aria-pressed=true]')?.textContent || null", "args": []})
+            if selected_after_drop == "Rlow":
+                break
+            time.sleep(.1)
+        assert selected_after_drop == "Rlow", selected_after_drop
+        assert drop_point("external", "Llow", .75, .5) == {"accepted": True, "data": "Llow"}
+        for _ in range(50):
+            selected_after_drop = webdriver(endpoint + "/execute/sync", {"script":
+                "return document.querySelector('.calibration-chip[aria-pressed=true]')?.textContent || null", "args": []})
+            if selected_after_drop == "ball":
+                break
+            time.sleep(.1)
+        assert selected_after_drop == "ball", selected_after_drop
+        for _ in range(50):
+            marks = webdriver(endpoint + "/execute/sync", {"script":
+                "return [...document.querySelectorAll('.calibration-marker')].map(x=>x.title)", "args": []})
+            if len(marks) == 2:
+                break
+            time.sleep(.1)
+        assert len(marks) == 2 and any("Rhigh" in mark for mark in marks) and any("Llow" in mark for mark in marks), marks
+        dot_size = webdriver(endpoint + "/execute/sync", {"script":
+            "return getComputedStyle(document.querySelector('.calibration-marker'),'::before').width", "args": []})
+        assert dot_size == "8px", dot_size
+        matrix_draft = webdriver(endpoint + "/execute/sync", {"script":
+            "[...document.querySelectorAll('.calibration-chip')].find(x=>x.textContent==='matrix').click();"
+            "let picture=document.querySelector('.camera[data-camera=body] .picture');"
+            "let video=document.getElementById('bodyVideo'),box=picture.getBoundingClientRect();"
+            "let scale=Math.min(box.width/video.videoWidth,box.height/video.videoHeight);"
+            "for(let [u,v] of [[.15,.2],[.45,.2],[.4,.55],[.15,.55]]){"
+            "let x=Math.round(box.left+(box.width-video.videoWidth*scale)/2+u*video.videoWidth*scale);"
+            "let y=Math.round(box.top+(box.height-video.videoHeight*scale)/2+v*video.videoHeight*scale);"
+            "picture.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:x,clientY:y}));}"
+            "return [...document.querySelectorAll('.calibration-chip')].find(x=>x.textContent==='matrix').getAttribute('aria-pressed')", "args": []})
+        assert matrix_draft == "true", matrix_draft
+        for _ in range(50):
+            draft_vertices = webdriver(endpoint + "/execute/sync", {"script":
+                "return document.querySelectorAll('.calibration-overlay[data-camera=body] .matrix-outline circle').length", "args": []})
+            if draft_vertices == 4:
+                break
+            time.sleep(.1)
+        assert draft_vertices == 4, draft_vertices
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        unsaved_matrix = webdriver(endpoint + "/execute/sync", {"script":
+            "return document.getElementById('status').textContent", "args": []})
+        assert "Completa o annulla" in unsaved_matrix, unsaved_matrix
+        completed_matrix = webdriver(endpoint + "/execute/sync", {"script":
+            "[...document.querySelectorAll('.matrix-actions button')].find(x=>x.textContent==='Completa poligono').click();"
+            "return {polygon:!!document.querySelector('.calibration-overlay[data-camera=body] .matrix-outline polygon'),"
+            "delete:!!document.querySelector('.calibration-overlay[data-camera=body] .matrix-delete')}", "args": []})
+        assert completed_matrix == {"polygon": True, "delete": True}, completed_matrix
+        vertex_start = webdriver(endpoint + "/execute/sync", {"script":
+            "let vertex=document.querySelector('.calibration-overlay[data-camera=body] .matrix-vertex');"
+            "let box=vertex.getBoundingClientRect();"
+            "return {x:Math.round(box.left+box.width/2),y:Math.round(box.top+box.height/2),label:vertex.getAttribute('aria-label')}",
+            "args": []})
+        assert "Vertice 1" in vertex_start["label"], vertex_start
+        vertex_target = webdriver(endpoint + "/execute/sync", {"script":
+            "let video=document.getElementById('bodyVideo'),box=video.parentElement.getBoundingClientRect();"
+            "let scale=Math.min(box.width/video.videoWidth,box.height/video.videoHeight);"
+            "return {x:Math.round(box.left+(box.width-video.videoWidth*scale)/2+.25*video.videoWidth*scale),"
+            "y:Math.round(box.top+(box.height-video.videoHeight*scale)/2+.1*video.videoHeight*scale)}", "args": []})
+        webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
+            "parameters": {"pointerType": "mouse"}, "actions": [
+                {"type": "pointerMove", "duration": 0, "x": vertex_start["x"], "y": vertex_start["y"]},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pointerMove", "duration": 250, "x": vertex_target["x"], "y": vertex_target["y"]},
+                {"type": "pointerUp", "button": 0}]}]})
+        moved_vertex = webdriver(endpoint + "/execute/sync", {"script":
+            "let vertex=document.querySelector('.calibration-overlay[data-camera=body] .matrix-vertex');"
+            "return {label:vertex.getAttribute('aria-label'),"
+            "polygon:document.querySelector('.calibration-overlay[data-camera=body] polygon').getAttribute('points'),"
+            "marks:document.querySelectorAll('.calibration-marker').length}", "args": []})
+        assert "x 47, y 42" in moved_vertex["label"] and moved_vertex["marks"] == 2, moved_vertex
+        nudged_vertex = webdriver(endpoint + "/execute/sync", {"script":
+            "let vertex=document.querySelector('.calibration-overlay[data-camera=body] .matrix-vertex');"
+            "vertex.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));"
+            "return vertex.getAttribute('aria-label')", "args": []})
+        assert "x 48, y 42" in nudged_vertex, nudged_vertex
+        kept_draft = webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('modeSwitch').click();document.getElementById('modeSwitch').click();"
+            "return {marks:document.querySelectorAll('.calibration-marker').length,"
+            "saveEnabled:!document.getElementById('saveLabels').disabled}", "args": []})
+        assert kept_draft == {"marks": 2, "saveEnabled": True}, kept_draft
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('calibrationSlider');s.value=1;s.dispatchEvent(new Event('input',{bubbles:true}))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"] and state["frame"] == 1:
+                break
+            time.sleep(.1)
+        assert state["frame"] == 1 and not state["busy"], state
+        click_placed = webdriver(endpoint + "/execute/sync", {"script":
+            "let chip=[...document.querySelectorAll('.calibration-chip')].find(x=>x.textContent==='ball');"
+            "chip.click();"
+            "let picture=document.querySelector('.camera[data-camera=aria] .picture');"
+            "let video=document.getElementById('ariaVideo'),box=picture.getBoundingClientRect();"
+            "let x=Math.round(box.left+box.width/2),y=Math.round(box.top+box.height/2);"
+            "picture.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:x,clientY:y}));"
+            "return {selected:[...document.querySelectorAll('.calibration-chip')].find(x=>x.textContent==='ball').getAttribute('aria-pressed'),"
+            "placing:document.getElementById('videos').classList.contains('calibration-placing')}",
+            "args": []})
+        for _ in range(50):
+            click_placed = webdriver(endpoint + "/execute/sync", {"script":
+                "let chip=[...document.querySelectorAll('.calibration-chip')].find(x=>x.textContent==='ball');"
+                "return {selected:chip.getAttribute('aria-pressed'),"
+                "placing:document.getElementById('videos').classList.contains('calibration-placing')}", "args": []})
+            if click_placed == {"selected": "false", "placing": False}:
+                break
+            time.sleep(.1)
+        assert click_placed == {"selected": "false", "placing": False}, click_placed
+        for _ in range(50):
+            aria_marker = webdriver(endpoint + "/execute/sync", {"script":
+                "let marker=document.querySelector('.calibration-overlay[data-camera=aria] .calibration-marker');"
+                "if(!marker)return null;let overlay=marker.parentElement.getBoundingClientRect();"
+                "return {title:marker.title,x:Math.round(overlay.left+parseFloat(marker.style.left)),"
+                "y:Math.round(overlay.top+parseFloat(marker.style.top))}", "args": []})
+            if aria_marker:
+                break
+            time.sleep(.1)
+        assert aria_marker and "ball" in aria_marker["title"], aria_marker
+        aria_target = webdriver(endpoint + "/execute/sync", {"script":
+            "let video=document.getElementById('ariaVideo'),box=video.parentElement.getBoundingClientRect();"
+            "let scale=Math.min(box.width/video.videoWidth,box.height/video.videoHeight);"
+            "return {x:Math.round(box.left+(box.width-video.videoWidth*scale)/2+.75*video.videoWidth*scale),"
+            "y:Math.round(box.top+(box.height-video.videoHeight*scale)/2+.25*video.videoHeight*scale)}", "args": []})
+        webdriver(endpoint + "/actions", {"actions": [{"type": "pointer", "id": "mouse",
+            "parameters": {"pointerType": "mouse"}, "actions": [
+                {"type": "pointerMove", "duration": 0, "x": aria_marker["x"], "y": aria_marker["y"]},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pointerMove", "duration": 250, "x": aria_target["x"], "y": aria_target["y"]},
+                {"type": "pointerUp", "button": 0}]}]})
+        moved_marker = webdriver(endpoint + "/execute/sync", {"script":
+            "let markers=[...document.querySelectorAll('.calibration-overlay[data-camera=aria] .calibration-marker')];"
+            "return {count:markers.length,title:markers[0]?.title,dialog:!!document.querySelector('dialog[open]')}", "args": []})
+        assert moved_marker["count"] == 1 and "ball" in moved_marker["title"] and not moved_marker["dialog"], moved_marker
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        calibration_file = ViewerTest.root / "s5/camera_calibration/curl_0.json"
+        for _ in range(50):
+            if calibration_file.exists():
+                calibration = json.loads(calibration_file.read_text())
+                if len(calibration["points"]) == 3:
+                    break
+            time.sleep(.1)
+        assert len(calibration["points"]) == 3, calibration
+        assert len(calibration["matrix"]) == 1, calibration
+        matrix = calibration["matrix"][0]
+        assert matrix["camera"] == "body" and matrix["frame"] == 1 and len(matrix["vertices"]) == 4, matrix
+        assert matrix["vertices"][0] == {"x": 48, "y": 42}, matrix
+        points = {(item["camera"], item["frame"], item["label"]): (item["x"], item["y"])
+                  for item in calibration["points"]}
+        assert points[("body", 1, "Rhigh")] == (47, 35), points
+        assert all(abs(a - b) <= 1 for a, b in zip(points[("external", 1, "Llow")], (47, 24))), points
+        assert all(abs(a - b) <= 1 for a, b in zip(points[("aria", 2, "ball")], (47, 12))), points
+        for _ in range(50):
+            saved_in_browser = webdriver(endpoint + "/execute/sync", {"script":
+                "return document.getElementById('saveLabels').disabled &&"
+                "document.getElementById('status').textContent.includes('Calibrazione salvata')", "args": []})
+            if saved_in_browser:
+                break
+            time.sleep(.1)
+        assert saved_in_browser
+        webdriver(endpoint + "/url", {"url": ViewerTest.base + "/?calibration-test=1"})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"]:
+                break
+            time.sleep(.1)
+        assert state["ready"] and not state["busy"], state
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('modeSwitch').click()", "args": []})
+        for _ in range(50):
+            restored_points = webdriver(endpoint + "/execute/sync", {"script":
+                "return [...document.querySelectorAll('.calibration-marker')].map(x=>x.title)", "args": []})
+            if len(restored_points) == 2:
+                break
+            time.sleep(.1)
+        assert len(restored_points) == 2 and any("Rhigh" in title for title in restored_points), restored_points
+        restored_matrix = webdriver(endpoint + "/execute/sync", {"script":
+            "return !!document.querySelector('.calibration-overlay[data-camera=body] .matrix-outline polygon')", "args": []})
+        assert restored_matrix
+        matrix_deleted = webdriver(endpoint + "/execute/sync", {"script":
+            "let remove=document.querySelector('.calibration-overlay[data-camera=body] .matrix-delete');"
+            "let original=window.confirm;window.confirm=()=>true;remove.click();window.confirm=original;"
+            "return !document.querySelector('.calibration-overlay[data-camera=body] .matrix-outline polygon')", "args": []})
+        assert matrix_deleted
+        deleted = webdriver(endpoint + "/execute/sync", {"script":
+            "let marker=[...document.querySelectorAll('.calibration-marker')].find(x=>x.textContent==='Rhigh');"
+            "let original=window.confirm;window.confirm=()=>true;marker.click();window.confirm=original;"
+            "return {remaining:[...document.querySelectorAll('.calibration-marker')].map(x=>x.textContent),"
+            "saveEnabled:!document.getElementById('saveLabels').disabled}", "args": []})
+        assert deleted == {"remaining": ["Llow"], "saveEnabled": True}, deleted
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            calibration = json.loads(calibration_file.read_text())
+            if len(calibration["points"]) == 2:
+                break
+            time.sleep(.1)
+        assert len(calibration["points"]) == 2 and not calibration["matrix"] and not any(
+            item["label"] == "Rhigh" for item in calibration["points"]), calibration
+        for _ in range(50):
+            if webdriver(endpoint + "/execute/sync", {"script":
+                    "return document.getElementById('saveLabels').disabled", "args": []}):
+                break
+            time.sleep(.1)
+        back_to_labeler = webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('modeSwitch').click();"
+            "return {button:document.getElementById('modeSwitch').textContent,"
+            "scrub:!document.getElementById('scrub').hidden,"
+            "calibrationHidden:document.getElementById('calibrationPalette').hidden,"
+            "labelsVisible:!document.getElementById('labelsPanel').hidden}", "args": []})
+        assert back_to_labeler == {"button": "Camera calibration", "scrub": True,
+                                   "calibrationHidden": True, "labelsVisible": True}, back_to_labeler
         def label_center(level, label):
             return webdriver(endpoint + "/execute/sync", {"script":
                 "document.getElementById('labelsPanel').open=true;"

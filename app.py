@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 
 CAMERAS = {"body": "camera_body", "external": "camera_env", "aria": "camera_aria"}
+CALIBRATION_LABELS = {"Rhigh", "Rlow", "Lhigh", "Llow", "ball"}
 SUBJECT = re.compile(r"s\d+")
 LABEL_SCHEMA = json.loads(Path(__file__).with_name("label_schema.json").read_text())
 TASKS = {task["trial_id"]: task for task in LABEL_SCHEMA["tasks"]}
@@ -87,8 +88,77 @@ def label_path(server, subject, sequence):
     return path
 
 
+def calibration_path(server, subject, sequence):
+    if sequence not in server.recordings.get(subject, {}):
+        raise LookupError("Sequenza non trovata")
+    subject_dir = server.root / subject
+    directory = subject_dir / "camera_calibration"
+    path = directory / f"{sequence}.json"
+    if (subject_dir.is_symlink() or directory.is_symlink() or path.is_symlink()
+            or not directory.resolve().is_relative_to(subject_dir.resolve())):
+        raise ValueError("Percorso della calibrazione non sicuro")
+    return path
+
+
 def label_revision(data):
     return hashlib.sha256(data).hexdigest() if data is not None else None
+
+
+def validate_calibration(document, subject, sequence, files):
+    required = {"subject", "sequence", "fps", "coordinate_space", "points"}
+    if (not isinstance(document, dict) or not required <= set(document)
+            or set(document) - required - {"matrix"}
+            or document["subject"] != subject or document["sequence"] != sequence
+            or type(document["fps"]) is not int or document["fps"] != 30
+            or document["coordinate_space"] != "source_pixels"):
+        raise ValueError("Documento di calibrazione non valido")
+    points = document["points"]
+    if not isinstance(points, list) or len(points) > 50000:
+        raise ValueError("Punti di calibrazione non validi")
+    metadata = {camera: probe(path) for camera, path in files.items()}
+    max_frame = min(item["frames"] for item in metadata.values())
+    seen = set()
+    for point in points:
+        if not isinstance(point, dict) or set(point) != {"camera", "frame", "label", "x", "y"}:
+            raise ValueError("Formato del punto di calibrazione non valido")
+        camera, frame, label = point["camera"], point["frame"], point["label"]
+        if (camera not in CAMERAS or label not in CALIBRATION_LABELS or type(frame) is not int
+                or not 1 <= frame <= max_frame or type(point["x"]) is not int or type(point["y"]) is not int
+                or not 0 <= point["x"] < metadata[camera]["width"]
+                or not 0 <= point["y"] < metadata[camera]["height"]):
+            raise ValueError("Coordinate, camera, frame o label non validi")
+        key = (camera, frame, label)
+        if key in seen:
+            raise ValueError("Punto duplicato per camera, frame e label")
+        seen.add(key)
+    regions = document.get("matrix", [])
+    if not isinstance(regions, list) or len(regions) > 50000:
+        raise ValueError("Poligoni matrix non validi")
+    seen = set()
+    for region in regions:
+        if not isinstance(region, dict) or set(region) != {"camera", "frame", "vertices"}:
+            raise ValueError("Formato del poligono matrix non valido")
+        camera, frame, vertices = region["camera"], region["frame"], region["vertices"]
+        if (camera not in CAMERAS or type(frame) is not int or not 1 <= frame <= max_frame
+                or not isinstance(vertices, list) or not 3 <= len(vertices) <= 1000):
+            raise ValueError("Camera, frame o numero di vertici matrix non validi")
+        if (camera, frame) in seen:
+            raise ValueError("Poligono matrix duplicato per camera e frame")
+        seen.add((camera, frame))
+        for vertex in vertices:
+            if (not isinstance(vertex, dict) or set(vertex) != {"x", "y"}
+                    or type(vertex["x"]) is not int or type(vertex["y"]) is not int
+                    or not 0 <= vertex["x"] < metadata[camera]["width"]
+                    or not 0 <= vertex["y"] < metadata[camera]["height"]):
+                raise ValueError("Vertice matrix fuori dall’immagine o non valido")
+        if len({(vertex["x"], vertex["y"]) for vertex in vertices}) != len(vertices):
+            raise ValueError("Vertici matrix duplicati")
+        area = sum(vertices[i]["x"] * vertices[(i + 1) % len(vertices)]["y"]
+                   - vertices[(i + 1) % len(vertices)]["x"] * vertices[i]["y"]
+                   for i in range(len(vertices)))
+        if not area:
+            raise ValueError("Il poligono matrix deve avere un’area")
+    return document
 
 
 def validate_labels(document, subject, sequence, files):
@@ -231,7 +301,7 @@ def discover(root):
 def probe(path):
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-         "stream=codec_name,r_frame_rate,nb_frames,start_time:format=duration", "-of", "json", str(path)],
+         "stream=codec_name,r_frame_rate,nb_frames,start_time,width,height:format=duration", "-of", "json", str(path)],
         capture_output=True, text=True, timeout=30, check=True,
     )
     data = json.loads(result.stdout)
@@ -241,6 +311,8 @@ def probe(path):
         "codec": stream["codec_name"],
         "fps": numerator / denominator,
         "frames": int(stream["nb_frames"]),
+        "width": int(stream["width"]),
+        "height": int(stream["height"]),
         "duration": float(data["format"]["duration"]),
         "start": float(stream.get("start_time", 0)),
     }
@@ -296,7 +368,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlsplit(self.path)
-        if parsed.path != "/api/labels":
+        if parsed.path not in ("/api/labels", "/api/calibration"):
             self.send_json({"error": "Percorso non trovato"}, HTTPStatus.NOT_FOUND)
             return
         query = parse_qs(parsed.query)
@@ -317,8 +389,11 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 raise ValueError("Richiesta di salvataggio non valida")
             if request["revision"] is not None and not isinstance(request["revision"], str):
                 raise ValueError("Revisione non valida")
-            document = validate_labels(request["data"], subject, sequence, files)
-            path = label_path(self.server, subject, sequence)
+            calibration = parsed.path == "/api/calibration"
+            document = (validate_calibration(request["data"], subject, sequence, files) if calibration else
+                        validate_labels(request["data"], subject, sequence, files))
+            path = (calibration_path(self.server, subject, sequence) if calibration else
+                    label_path(self.server, subject, sequence))
             payload = (json.dumps(document, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
             with self.server.label_lock:
                 current = path.read_bytes() if path.exists() else None
@@ -339,7 +414,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 finally:
                     if temporary is not None:
                         temporary.unlink(missing_ok=True)
-            self.send_json({"revision": label_revision(payload), "warnings": label_warnings(document)})
+            self.send_json({"revision": label_revision(payload),
+                            "warnings": [] if calibration else label_warnings(document)})
         except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as exc:
             self.send_json({"error": f"Salvataggio non riuscito: {exc}"}, HTTPStatus.BAD_REQUEST)
         except (OSError, subprocess.SubprocessError) as exc:
@@ -361,7 +437,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/catalog":
             self.send_json({subject: sorted(sequences) for subject, sequences in self.server.recordings.items()})
             return
-        if parsed.path in ("/api/schema", "/api/labels"):
+        if parsed.path in ("/api/schema", "/api/labels", "/api/calibration"):
             query = parse_qs(parsed.query)
             subject, sequence = query.get("subject", [""])[0], query.get("sequence", [""])[0]
             if sequence not in self.server.recordings.get(subject, {}):
@@ -376,6 +452,22 @@ class ViewerHandler(BaseHTTPRequestHandler):
                                 "task_attributes": task["attributes"] if task else {},
                                 "choices": choices, "attribute_values": LABEL_SCHEMA["attribute_values"],
                                 "load_contact_level": load_contact_level(choices)})
+                return
+            if parsed.path == "/api/calibration":
+                try:
+                    path = calibration_path(self.server, subject, sequence)
+                    content = path.read_bytes() if path.exists() else None
+                    if content is not None and len(content) > MAX_LABEL_BYTES:
+                        raise ValueError("File di calibrazione troppo grande")
+                    document = (validate_calibration(json.loads(content), subject, sequence,
+                                                     self.server.recordings[subject][sequence]) if content is not None
+                                else {"subject": subject, "sequence": sequence, "fps": 30,
+                                      "coordinate_space": "source_pixels", "points": [], "matrix": []})
+                    self.send_json({"data": document, "revision": label_revision(content)})
+                except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as exc:
+                    self.send_json({"error": f"Calibrazione salvata non valida: {exc}"}, HTTPStatus.CONFLICT)
+                except (OSError, subprocess.SubprocessError) as exc:
+                    self.send_json({"error": f"Calibrazione non caricabile: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 return
             try:
                 path = label_path(self.server, subject, sequence)
