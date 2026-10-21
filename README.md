@@ -64,6 +64,17 @@ testina verticale; sotto il righello, ogni livello e nome di label ha una
 traccia. Il righello mostra un segno ogni 10 frame e il numero ogni 50;
 le linee corrispondenti attraversano tutte le tracce. I segmenti della stessa label condividono la traccia, anche se hanno
 fasi diverse; quando si sovrappongono usano corsie nella stessa traccia.
+
+Per una sequenza nuova, la guida propone prima le label high. Il pulsante
+**Conferma e passa** abilita via via mid, low e atomic, saltando i livelli non
+previsti dal task. La conferma permette di proseguire anche senza annotazioni
+al livello corrente; un intervallo aperto va prima chiuso con **End**. Le label
+dei livelli già raggiunti restano disponibili per le correzioni. Dopo la
+conferma dell'ultimo livello, sono disponibili tutte le label, comprese le aux.
+La fase raggiunta viene salvata insieme alle annotazioni nel campo
+`workflow_stage` e ripresa da chi apre la stessa sequenza. I file già annotati
+prima dell'introduzione della guida si aprono direttamente in modalità libera.
+
 Ogni segmento mostra label, attributi e durata in frame, con i dettagli
 completi al passaggio del mouse. Trascinare i bordi colorati per cambiare
 inizio/fine: la testina segue il bordo e i video mostrano il frame selezionato. Con un bordo
@@ -96,7 +107,7 @@ sovrascriverlo; ricaricare la sequenza dopo aver conservato le proprie
 modifiche. Un avviso compare se si cambia sequenza o si chiude la pagina con
 modifiche non salvate. Non è possibile salvare un intervallo ancora aperto.
 
-Il JSON contiene `schema_version`, `subject`, `sequence`, `fps` e
+Il JSON contiene `schema_version`, `subject`, `sequence`, `fps`, `workflow_stage` e
 `annotations`. Ogni annotazione conserva i campi del template dello schema,
 più `start_frame`, `end_frame`, `direction` e `location`. Gli indici dei frame iniziano da
 **1** e gli estremi dell'intervallo sono inclusivi. `t_start` è l'istante

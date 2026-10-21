@@ -93,7 +93,9 @@ def label_revision(data):
 
 def validate_labels(document, subject, sequence, files):
     task, choices = label_choices(sequence)
-    if not isinstance(document, dict) or set(document) != {"schema_version", "subject", "sequence", "fps", "annotations"}:
+    required = {"schema_version", "subject", "sequence", "fps", "annotations"}
+    if (not isinstance(document, dict) or not required <= set(document)
+            or set(document) - required - {"workflow_stage"}):
         raise ValueError("Formato del documento di label non valido")
     if (document["schema_version"] != LABEL_SCHEMA["schema_version"] or document["subject"] != subject
             or document["sequence"] != sequence or type(document["fps"]) is not int or document["fps"] != 30):
@@ -101,6 +103,9 @@ def validate_labels(document, subject, sequence, files):
     records = document["annotations"]
     if not isinstance(records, list) or len(records) > 10000 or (not task and records):
         raise ValueError("Annotazioni non valide per questa sequenza")
+    stages = {choice["level"] for choice in choices if choice["level"] in ("high", "mid", "low", "atomic")}
+    if "workflow_stage" in document and document["workflow_stage"] not in stages | {"free"}:
+        raise ValueError("Fase della procedura guidata non valida")
     allowed = {(choice["level"], choice["label"]) for choice in choices}
     phases = {(choice["level"], choice["label"], choice["phase"]) for choice in choices}
     max_frame = min(probe(path)["frames"] for path in files.values())
@@ -410,7 +415,9 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 else:
                     document = {"schema_version": LABEL_SCHEMA["schema_version"], "subject": subject,
                                 "sequence": sequence, "fps": 30, "annotations": []}
+                workflow_stage = document.get("workflow_stage", "free" if document["annotations"] else "high")
                 self.send_json({"data": document, "revision": label_revision(content),
+                                "workflow_stage": workflow_stage,
                                 "warnings": label_warnings(document)})
             except (OSError, ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError,
                     subprocess.SubprocessError) as exc:

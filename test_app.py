@@ -28,6 +28,8 @@ class ViewerTest(unittest.TestCase):
         shutil.copyfile(sample, body / "s5_curl_1_rgb.mp4")
         shutil.copyfile(sample, body / "s5_throwing_0_rgb.mp4")
         shutil.copyfile(sample, body / "s5_pouring_light_0_rgb.mp4")
+        shutil.copyfile(sample, body / "s5_drilling_vertical_0_rgb.mp4")
+        shutil.copyfile(sample, body / "s5_infinity_tracing_0_rgb.mp4")
         for camera in ("camera_env", "camera_aria"):
             directory = cls.root / "s5/aligned" / camera
             directory.mkdir()
@@ -35,6 +37,8 @@ class ViewerTest(unittest.TestCase):
             shutil.copyfile(sample, directory / "s5_curl_1_rgb.mp4")
             shutil.copyfile(sample, directory / "s5_throwing_0_rgb.mp4")
             shutil.copyfile(sample, directory / "s5_pouring_light_0_rgb.mp4")
+            shutil.copyfile(sample, directory / "s5_drilling_vertical_0_rgb.mp4")
+            shutil.copyfile(sample, directory / "s5_infinity_tracing_0_rgb.mp4")
             shutil.copyfile(sample, directory / "s5_static_0_rgb.mp4")
         shutil.copyfile(sample, body / "s5_static_0_rgb.mp4")
         incomplete = cls.root / "s6/aligned/camera_body"
@@ -63,7 +67,7 @@ class ViewerTest(unittest.TestCase):
 
     def test_discovery_and_metadata(self):
         with self.request("/api/catalog") as response:
-            self.assertEqual(json.load(response), {"s5": ["curl_0", "curl_1", "pouring_light_0", "static_0", "throwing_0"]})
+            self.assertEqual(json.load(response), {"s5": ["curl_0", "curl_1", "drilling_vertical_0", "infinity_tracing_0", "pouring_light_0", "static_0", "throwing_0"]})
         with self.request("/api/sequence?subject=s5&sequence=curl_0") as response:
             data = json.load(response)
         self.assertEqual(set(data["videos"]), {"body", "external", "aria"})
@@ -86,6 +90,7 @@ class ViewerTest(unittest.TestCase):
             current = json.load(response)
         self.assertIsNone(current["revision"])
         self.assertEqual(current["data"]["annotations"], [])
+        self.assertEqual(current["workflow_stage"], "high")
         base = {"parents": [], "rep": None, "side": None, "direction": None, "phase": None,
                 "external_load": None, "contact_points": None, "target": None, "location": None, "note": None}
         document = current["data"]
@@ -103,6 +108,7 @@ class ViewerTest(unittest.TestCase):
             reopened = json.load(response)
         self.assertEqual(reopened["data"], document)
         self.assertEqual(reopened["revision"], saved["revision"])
+        self.assertEqual(reopened["workflow_stage"], "free")
         with self.assertRaises(HTTPError) as error:
             self.request(url, method="POST", data={"revision": None, "data": document})
         self.assertEqual(error.exception.code, 409)
@@ -238,6 +244,32 @@ class ViewerTest(unittest.TestCase):
             with self.assertRaises(HTTPError) as error:
                 self.request(url, method="POST", data={"revision": revision, "data": bad})
             self.assertEqual(error.exception.code, 400)
+
+    def test_workflow_stage_persistence(self):
+        url = "/api/labels?subject=s5&sequence=drilling_vertical_0"
+        with self.request(url) as response:
+            current = json.load(response)
+        self.assertEqual(current["workflow_stage"], "high")
+        document = current["data"]
+        document["workflow_stage"] = "mid"
+        with self.request(url, method="POST", data={"revision": current["revision"], "data": document}) as response:
+            saved = json.load(response)
+        with self.request(url) as response:
+            reopened = json.load(response)
+        self.assertEqual(reopened["workflow_stage"], "mid")
+        self.assertEqual(reopened["data"], document)
+        self.assertEqual(reopened["revision"], saved["revision"])
+        document["workflow_stage"] = "free"
+        with self.request(url, method="POST", data={"revision": saved["revision"], "data": document}) as response:
+            self.assertEqual(response.status, 200)
+        document["workflow_stage"] = "unknown"
+        with self.assertRaises(HTTPError) as error:
+            self.request(url, method="POST", data={"revision": None, "data": document})
+        self.assertEqual(error.exception.code, 400)
+        document["workflow_stage"] = ["mid"]
+        with self.assertRaises(HTTPError) as error:
+            self.request(url, method="POST", data={"revision": None, "data": document})
+        self.assertEqual(error.exception.code, 400)
 
     def test_every_task_matches_new_schema(self):
         for task in LABEL_SCHEMA["tasks"]:

@@ -42,8 +42,13 @@
     #bodyVideo, #bodyCanvas { transform: rotate(180deg); }
     .labels-panel { margin: 0 0 10px; padding: 8px 12px; border: 1px solid #354250; border-radius: 8px; background: #1a212a; }
     .labels-panel summary { cursor: pointer; font-weight: 600; }
+    .workflow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; padding: 7px 10px; border: 1px solid #58758a; border-radius: 7px; background: #1c2d3a; font-size: .84rem; }
+    .workflow[hidden] { display: none; }
+    .workflow span { flex: 1 1 260px; }
+    .workflow button { padding: 4px 9px; font-size: .82rem; }
     #palette { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
     .palette-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+    .palette-group.current { padding: 4px 6px; border: 1px solid #64c7f5; border-radius: 6px; }
     .palette-group strong { margin-right: 3px; color: #aab5c2; font-size: .8rem; }
     .label-chip { padding: 4px 8px; border: 1px solid #63788a; border-radius: 5px; background: #293948; font-size: .82rem; }
     #labelTooltip { position: fixed; z-index: 10; max-width: min(360px, calc(100vw - 16px)); padding: 8px 10px; border: 1px solid #9aaab8; border-radius: 6px; background: #eef2f6; color: #17212b; box-shadow: 0 4px 12px #0008; font-size: .8rem; line-height: 1.35; pointer-events: none; }
@@ -136,6 +141,7 @@
     </div>
   </div>
 
+  <div id="workflow" class="workflow" hidden><span id="workflowText"></span><button id="workflowAdvance" type="button"></button></div>
   <details id="labelsPanel" class="labels-panel"><summary>Label · clicca al frame corrente</summary><div id="palette"></div><div id="labelTooltip" role="tooltip" hidden></div></details>
 
   <div id="videos" class="videos">
@@ -205,6 +211,10 @@
   const playButton = document.getElementById('play');
   const helpDialog = document.getElementById('helpDialog');
   const palette = document.getElementById('palette');
+  const workflow = document.getElementById('workflow');
+  const workflowText = document.getElementById('workflowText');
+  const workflowAdvance = document.getElementById('workflowAdvance');
+  const labelsPanel = document.getElementById('labelsPanel');
   const labelTooltip = document.getElementById('labelTooltip');
   const annotationRows = document.getElementById('annotationRows');
   const endButton = document.getElementById('endLabel');
@@ -226,6 +236,7 @@
   const held = new Set();
   let labelSchema = null;
   let labelProblem = '';
+  let workflowStage = null;
   let annotations = [];
   let revision = null;
   let dirty = false;
@@ -377,6 +388,7 @@
       row.append(name, track);
       annotationRows.append(row);
     }
+    renderWorkflow();
   }
 
   function adjustEdge(record, edge, frame) {
@@ -393,6 +405,22 @@
     if (pendingFrame !== edgeFrame || playing) seek(edgeFrame);
   }
 
+  function workflowLevels() {
+    return ['high', 'mid', 'low', 'atomic'].filter(level => labelSchema?.choices.some(choice => choice.level === level));
+  }
+
+  function renderWorkflow() {
+    const levels = workflowLevels();
+    const index = levels.indexOf(workflowStage);
+    workflow.hidden = !labelSchema?.task || !!labelProblem || index < 0;
+    if (workflow.hidden) return;
+    const names = {high: 'High', mid: 'Mid', low: 'Low', atomic: 'Atomic'};
+    const next = levels[index + 1];
+    workflowText.textContent = `Guida ${index + 1}/${levels.length} · ${names[workflowStage]}: aggiungi le label al frame corrente, poi conferma per continuare.`;
+    workflowAdvance.textContent = next ? `Conferma e passa a ${names[next]}` : 'Conferma e termina la guida';
+    workflowAdvance.disabled = pendingId !== null || !frames;
+  }
+
   function renderPalette() {
     labelTooltip.hidden = true;
     palette.replaceChildren();
@@ -401,9 +429,12 @@
       palette.textContent = 'Nessuna label definita nello schema per questa sequenza.';
       return;
     }
+    const permitted = workflowStage === 'free' ? null : workflowLevels().slice(0, workflowLevels().indexOf(workflowStage) + 1);
     for (const [level, title] of [['high', 'High'], ['mid', 'Mid'], ['low', 'Low'], ['atomic', 'Atomic'], ['aux', 'Aux']]) {
+      if (permitted && !permitted.includes(level)) continue;
       const group = document.createElement('div');
       group.className = 'palette-group';
+      if (workflowStage === level) group.classList.add('current');
       const heading = document.createElement('strong');
       heading.textContent = title;
       group.append(heading);
@@ -460,6 +491,8 @@
   async function addChoice(choice) {
     if (labelProblem || !frames || !labelSchema?.choices.some(item => item.level === choice.level && item.label === choice.label
         && item.phase === choice.phase)) return;
+    if (workflowStage !== 'free' && !workflowLevels().slice(0, workflowLevels().indexOf(workflowStage) + 1)
+        .includes(choice.level)) return;
     if (pendingId !== null) { message('Chiudi prima l’intervallo corrente con End.', 'warn'); return; }
     if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
     const record = newRecord(choice, pendingFrame + 1);
@@ -763,6 +796,7 @@
     frames = 0;
     labelSchema = null;
     labelProblem = '';
+    workflowStage = null;
     annotations = [];
     revision = null;
     dirty = false;
@@ -800,7 +834,9 @@
       labelSchema = schema;
       labelProblem = labelResponse.ok ? '' : saved.error;
       annotations = labelResponse.ok ? saved.data.annotations : [];
+      workflowStage = labelResponse.ok ? saved.workflow_stage : null;
       revision = labelResponse.ok ? saved.revision : null;
+      if (workflowStage !== 'free' && !labelProblem && labelSchema.task) labelsPanel.open = true;
       renderPalette();
       renderAnnotations();
       await Promise.all(cameras.map(camera => new Promise((resolve, reject) => {
@@ -837,7 +873,7 @@
     const turn = loading;
     const version = editVersion;
     const document = {schema_version: labelSchema.schema_version, subject: subject.value,
-      sequence: sequence.value, fps: 30, annotations};
+      sequence: sequence.value, fps: 30, workflow_stage: workflowStage, annotations};
     try {
       const response = await fetch(labelUrl(), {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({revision, data: document})});
@@ -908,6 +944,21 @@
   document.getElementById('next').addEventListener('click', () => seek(Number(slider.value) + 1));
   endButton.addEventListener('click', closeInterval);
   saveButton.addEventListener('click', saveLabels);
+  workflowAdvance.addEventListener('click', () => {
+    const levels = workflowLevels();
+    const index = levels.indexOf(workflowStage);
+    if (index < 0 || pendingId !== null || !frames || labelProblem) return;
+    const next = levels[index + 1] || 'free';
+    const title = next === 'free' ? 'terminare la guida e sbloccare tutte le label' : `passare alle label ${next}`;
+    if (!window.confirm(`Confermi di aver terminato il livello ${workflowStage} e di voler ${title}?`)) return;
+    workflowStage = next;
+    markDirty();
+    renderPalette();
+    renderWorkflow();
+    labelsPanel.open = true;
+    message(next === 'free' ? 'Guida completata: tutte le label e le modifiche sono disponibili. Salva per conservarlo.'
+      : `Ora puoi annotare il livello ${next}. Salva per conservare l’avanzamento.`);
+  });
   document.getElementById('cancelEdit').addEventListener('click', () => editDialog.close());
   document.getElementById('closeChoose').addEventListener('click', () => chooseDialog.close());
   document.getElementById('deleteLabel').addEventListener('click', () => {

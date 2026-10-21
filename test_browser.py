@@ -7,6 +7,7 @@ import subprocess
 import time
 from urllib.request import Request, urlopen
 
+from app import LABEL_SCHEMA
 from test_app import ViewerTest
 
 
@@ -21,6 +22,12 @@ def main():
     if not shutil.which("geckodriver") or not shutil.which("firefox"):
         raise SystemExit("Firefox e geckodriver sono necessari per questo test")
     ViewerTest.setUpClass()
+    label_dir = ViewerTest.root / "s5/label"
+    label_dir.mkdir()
+    for name in ("curl_0", "curl_1", "throwing_0", "pouring_light_0"):
+        (label_dir / f"{name}.json").write_text(json.dumps({
+            "schema_version": LABEL_SCHEMA["schema_version"], "subject": "s5", "sequence": name,
+            "fps": 30, "workflow_stage": "free", "annotations": []}))
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -583,7 +590,7 @@ def main():
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
         path = ViewerTest.root / "s5/label/pouring_light_0.json"
         for _ in range(50):
-            if path.exists():
+            if path.exists() and json.loads(path.read_text())["annotations"]:
                 break
             time.sleep(0.1)
         assert json.loads(path.read_text())["annotations"][0]["location"] == "g9"
@@ -603,7 +610,103 @@ def main():
         assert webdriver(endpoint + "/execute/sync", {"script":
             "return document.querySelectorAll('.label-chip').length===0 && document.getElementById('saveLabels').disabled", "args": []})
         assert json.loads(old_path.read_text()) == old
-        print("Video, annotazioni e riapertura nel browser: OK")
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='drilling_vertical_0';"
+            "s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"]:
+                break
+            time.sleep(0.1)
+        assert state["ready"] and not state["busy"], state
+        guide = {"script":
+            "return {visible:!document.getElementById('workflow').hidden,"
+            "text:document.getElementById('workflowText').textContent,"
+            "groups:[...document.querySelectorAll('.palette-group strong')].map(x=>x.textContent),"
+            "button:document.getElementById('workflowAdvance').textContent}", "args": []}
+        initial_guide = webdriver(endpoint + "/execute/sync", guide)
+        assert initial_guide["visible"] and initial_guide["groups"] == ["High"], initial_guide
+        cancelled = webdriver(endpoint + "/execute/sync", {"script":
+            "window.confirm=()=>false;document.getElementById('workflowAdvance').click();"
+            "return document.getElementById('workflowText').textContent", "args": []})
+        assert cancelled == initial_guide["text"], cancelled
+        first_step = webdriver(endpoint + "/execute/sync", {"script":
+            "window.confirm=message=>{window.guidePrompt=message;return true};"
+            "document.getElementById('workflowAdvance').click();"
+            "return {prompt:window.guidePrompt,"
+            "groups:[...document.querySelectorAll('.palette-group strong')].map(x=>x.textContent)}", "args": []})
+        assert "high" in first_step["prompt"] and first_step["groups"] == ["High", "Mid"], first_step
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        guide_path = ViewerTest.root / "s5/label/drilling_vertical_0.json"
+        for _ in range(50):
+            if (guide_path.exists() and json.loads(guide_path.read_text())["workflow_stage"] == "mid"
+                    and webdriver(endpoint + "/execute/sync", {"script":
+                        "return !document.getElementById('saveLabels').disabled ? false : "
+                        "document.getElementById('status').textContent.startsWith('Annotazioni salvate')", "args": []})):
+                break
+            time.sleep(0.1)
+        assert json.loads(guide_path.read_text())["workflow_stage"] == "mid"
+        webdriver(endpoint + "/execute/sync", {"script":
+            "window.__guideReloadMarker=true;window.location.reload()", "args": []})
+        for _ in range(100):
+            try:
+                reloaded = webdriver(endpoint + "/execute/sync", {"script":
+                    "return document.readyState==='complete' && !window.__guideReloadMarker && "
+                    "!document.getElementById('slider').disabled && !document.getElementById('seekState').textContent", "args": []})
+            except (OSError, KeyError):
+                reloaded = False
+            if reloaded:
+                break
+            time.sleep(0.1)
+        assert reloaded, "La pagina non si è ricaricata"
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='drilling_vertical_0';"
+            "s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"] and "drilling_vertical_0" in webdriver(
+                    endpoint + "/execute/sync", {"script":
+                        "return document.getElementById('selectionSummary').textContent", "args": []}):
+                break
+            time.sleep(0.1)
+        assert state["ready"] and not state["busy"], state
+        resumed = webdriver(endpoint + "/execute/sync", guide)
+        assert resumed["visible"] and "Mid" in resumed["text"] and resumed["groups"] == ["High", "Mid"], resumed
+        steps = webdriver(endpoint + "/execute/sync", {"script":
+            "window.confirm=()=>true;let button=document.getElementById('workflowAdvance'),result=[];"
+            "for(let i=0;i<3;i++){button.click();result.push({"
+            "groups:[...document.querySelectorAll('.palette-group strong')].map(x=>x.textContent),"
+            "visible:!document.getElementById('workflow').hidden});}return result", "args": []})
+        assert steps == [
+            {"groups": ["High", "Mid", "Low"], "visible": True},
+            {"groups": ["High", "Mid", "Low", "Atomic"], "visible": True},
+            {"groups": ["High", "Mid", "Low", "Atomic", "Aux"], "visible": False}], steps
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            if (json.loads(guide_path.read_text())["workflow_stage"] == "free"
+                    and webdriver(endpoint + "/execute/sync", {"script":
+                        "return document.getElementById('status').textContent.startsWith('Annotazioni salvate')", "args": []})):
+                break
+            time.sleep(0.1)
+        assert json.loads(guide_path.read_text())["workflow_stage"] == "free"
+        webdriver(endpoint + "/execute/sync", {"script":
+            "let s=document.getElementById('sequence');s.value='infinity_tracing_0';"
+            "s.dispatchEvent(new Event('change'))", "args": []})
+        for _ in range(100):
+            state = webdriver(endpoint + "/execute/sync", read)
+            if state["ready"] and not state["busy"]:
+                break
+            time.sleep(0.1)
+        assert state["ready"] and not state["busy"], state
+        skipped = webdriver(endpoint + "/execute/sync", {"script":
+            "window.confirm=()=>true;let button=document.getElementById('workflowAdvance');"
+            "let before=[...document.querySelectorAll('.palette-group strong')].map(x=>x.textContent);"
+            "button.click();let middle=[...document.querySelectorAll('.palette-group strong')].map(x=>x.textContent);"
+            "button.click();return {before,middle,after:[...document.querySelectorAll('.palette-group strong')]"
+            ".map(x=>x.textContent),hidden:document.getElementById('workflow').hidden}", "args": []})
+        assert skipped == {"before": ["High"], "middle": ["High", "Mid"],
+                           "after": ["High", "Mid", "Aux"], "hidden": True}, skipped
+        print("Video, annotazioni e guida nel browser: OK")
     finally:
         if session:
             try:
