@@ -92,9 +92,6 @@
     .annotation-handle.start::before { left: 0; }
     .annotation-handle.end { right: 0; }
     .annotation-handle.end::before { right: 0; }
-    .annotation-bar.point { min-width: 12px; width: 12px !important; }
-    .annotation-bar.point .annotation-handle { width: 12px; }
-    .annotation-bar.point .annotation-handle::before { width: 4px; }
     #playheadLine { grid-column: 2; grid-row: 1 / 3; position: relative; z-index: 4; margin: 0 9px; pointer-events: none; }
     #playheadLine::before { content: ''; position: absolute; top: 11px; bottom: 0; left: var(--progress); border-left: 2px solid #168ec4; transform: translateX(-1px); }
     #status:not(:empty) { margin-top: 7px; }
@@ -267,8 +264,7 @@
 
   function syncTimes(record) {
     record.t_start = (record.start_frame - 1) / 30;
-    record.t_end = record.level === 'aux' && record.label === 'sync'
-      ? record.t_start : record.end_frame / 30;
+    record.t_end = record.end_frame / 30;
   }
 
   function recordSummary(record) {
@@ -278,17 +274,14 @@
     if (record.level === 'high') attributes.unshift(...Object.entries(labelSchema?.task_attributes || {})
       .filter(([name, value]) => ['variant', 'kg', 'load_class'].includes(name) && value !== null)
       .map(([name, value]) => `${name}: ${value}`));
-    const duration = record.level === 'aux' && record.label === 'sync'
-      ? `frame ${record.start_frame}`
-      : `frame ${record.start_frame}–${record.end_frame} · ${record.end_frame - record.start_frame + 1} frame`;
+    const duration = `frame ${record.start_frame}–${record.end_frame} · ${record.end_frame - record.start_frame + 1} frame`;
     return `${record.level} · ${record.label} · ${duration}${attributes.length ? ' · ' + attributes.join(' · ') : ''}`
       + (record.id === pendingId ? ' · in attesa di End' : '');
   }
 
   function placeBar(bar, record) {
     const span = Math.max(1, frames - 1);
-    const minimum = bar.classList.contains('point') ? 12 : 20;
-    bar.style.left = `min(${(record.start_frame - 1) / span * 100}%, calc(100% - ${minimum}px))`;
+    bar.style.left = `min(${(record.start_frame - 1) / span * 100}%, calc(100% - 20px))`;
     bar.style.width = `${(record.end_frame - record.start_frame) / span * 100}%`;
   }
 
@@ -322,8 +315,7 @@
       const pixelsPerFrame = ruler.clientWidth / Math.max(1, frames - 1);
       for (const record of records.sort((a, b) => a.start_frame - b.start_frame || a.id - b.id)) {
         const startPixel = (record.start_frame - 1) * pixelsPerFrame;
-        const endPixel = Math.max((record.end_frame - 1) * pixelsPerFrame,
-          startPixel + (record.level === 'aux' && record.label === 'sync' ? 12 : 20));
+        const endPixel = Math.max((record.end_frame - 1) * pixelsPerFrame, startPixel + 20);
         let lane = laneEnds.findIndex(end => end + 3 < startPixel);
         if (lane < 0) lane = laneEnds.length;
         laneEnds[lane] = endPixel;
@@ -332,7 +324,6 @@
         bar.dataset.level = record.level;
         bar.dataset.recordId = record.id;
         bar.style.top = `${lane * 28 + 3}px`;
-        if (record.level === 'aux' && record.label === 'sync') bar.classList.add('point');
         placeBar(bar, record);
         const caption = document.createElement('button');
         caption.className = 'annotation-caption';
@@ -342,7 +333,7 @@
         caption.disabled = record.id === pendingId;
         caption.addEventListener('click', () => openEditor(record.id));
         bar.append(caption);
-        for (const edge of (bar.classList.contains('point') ? ['start'] : ['start', 'end'])) {
+        for (const edge of ['start', 'end']) {
           const handle = document.createElement('div');
           handle.className = `annotation-handle ${edge}`;
           handle.role = 'slider';
@@ -392,9 +383,7 @@
   }
 
   function adjustEdge(record, edge, frame) {
-    if (record.level === 'aux' && record.label === 'sync') {
-      record.start_frame = record.end_frame = Math.max(1, Math.min(frames, frame));
-    } else if (edge === 'start') {
+    if (edge === 'start') {
       record.start_frame = Math.max(1, Math.min(record.end_frame, frame));
     } else {
       record.end_frame = Math.max(record.start_frame, Math.min(frames, frame));
@@ -481,7 +470,7 @@
       note: null};
     syncTimes(record);
     annotations.push(record);
-    if (!(level === 'aux' && label === 'sync')) pendingId = record.id;
+    pendingId = record.id;
     markDirty();
     renderAnnotations();
     endButton.disabled = pendingId === null;
@@ -496,9 +485,7 @@
     if (pendingId !== null) { message('Chiudi prima l’intervallo corrente con End.', 'warn'); return; }
     if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
     const record = newRecord(choice, pendingFrame + 1);
-    message(record.id === pendingId
-      ? `${record.label}: inizio al frame ${record.start_frame}. Vai al frame finale e premi End.`
-      : `${record.label}: evento al frame ${record.start_frame}.`);
+    message(`${record.label}: inizio al frame ${record.start_frame}. Vai al frame finale e premi End.`);
   }
 
   async function exactFrame() {
@@ -533,7 +520,6 @@
     document.getElementById('editTitle').textContent = `${record.level} · ${record.label}`;
     document.getElementById('editStart').value = record.start_frame;
     document.getElementById('editEnd').value = record.end_frame;
-    document.getElementById('editEnd').disabled = record.level === 'aux' && record.label === 'sync';
     document.getElementById('editStart').max = frames;
     document.getElementById('editEnd').max = frames;
     document.getElementById('editRep').value = record.rep ?? '';
@@ -974,8 +960,7 @@
     const record = annotations.find(item => item.id === editingId);
     if (!record) return;
     const start = Number(document.getElementById('editStart').value);
-    const end = record.level === 'aux' && record.label === 'sync'
-      ? start : Number(document.getElementById('editEnd').value);
+    const end = Number(document.getElementById('editEnd').value);
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end > frames || start > end) {
       const input = document.getElementById('editEnd');
       input.setCustomValidity('Il frame finale deve essere compreso tra quello iniziale e l’ultimo frame del video.');

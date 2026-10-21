@@ -431,10 +431,6 @@
     {
       "label": "invalid",
       "definition": "Segment to exclude; reason in 'note' (occlusion, marker loss, EMG artifact, off force plate, wrong execution)."
-    },
-    {
-      "label": "sync",
-      "definition": "Point event used to align sensor clocks."
     }
   ],
   "annotation_record_template": {

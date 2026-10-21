@@ -84,7 +84,11 @@ class ViewerTest(unittest.TestCase):
         with self.request("/api/schema?subject=s5&sequence=static_0") as response:
             self.assertEqual(json.load(response)["choices"], [])
         with self.request("/api/schema?subject=s5&sequence=curl_0") as response:
-            self.assertIn("curl", [choice["label"] for choice in json.load(response)["choices"]])
+            labels = [choice["label"] for choice in json.load(response)["choices"]]
+        self.assertIn("curl", labels)
+        self.assertIn("transition", labels)
+        self.assertIn("invalid", labels)
+        self.assertNotIn("sync", labels)
         url = "/api/labels?subject=s5&sequence=curl_0"
         with self.request(url) as response:
             current = json.load(response)
@@ -97,8 +101,8 @@ class ViewerTest(unittest.TestCase):
         document["annotations"] = [
             {**base, "id": 1, "level": "high", "label": "curl", "start_frame": 1,
              "end_frame": 30, "t_start": 0, "t_end": 1},
-            {**base, "id": 2, "level": "aux", "label": "sync", "start_frame": 10,
-             "end_frame": 10, "t_start": 9 / 30, "t_end": 9 / 30},
+            {**base, "id": 2, "level": "aux", "label": "transition", "start_frame": 10,
+             "end_frame": 20, "t_start": 9 / 30, "t_end": 20 / 30},
         ]
         with self.request(url, method="POST", data={"revision": None, "data": document}) as response:
             saved = json.load(response)
@@ -117,8 +121,13 @@ class ViewerTest(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             self.request(url, method="POST", data={"revision": saved["revision"], "data": bad})
         self.assertEqual(error.exception.code, 400)
-        bad["annotations"][1]["end_frame"] = 10
+        bad["annotations"][1]["end_frame"] = 20
         bad["annotations"][0]["end_frame"] = 121
+        with self.assertRaises(HTTPError) as error:
+            self.request(url, method="POST", data={"revision": saved["revision"], "data": bad})
+        self.assertEqual(error.exception.code, 400)
+        bad = json.loads(json.dumps(document))
+        bad["annotations"][1].update(label="sync", end_frame=10, t_end=9 / 30)
         with self.assertRaises(HTTPError) as error:
             self.request(url, method="POST", data={"revision": saved["revision"], "data": bad})
         self.assertEqual(error.exception.code, 400)
@@ -141,6 +150,13 @@ class ViewerTest(unittest.TestCase):
         self.assertEqual({item["label"] for item in curl_choices if item["level"] == "low"},
                          {"flexion", "extension"})
         self.assertTrue(next(item for item in curl_choices if item["label"] == "curl")["definition"])
+        legacy_sync = {**document, "sequence": "curl_1", "annotations": [bad["annotations"][1]]}
+        (self.root / "s5/label/curl_1.json").write_text(json.dumps(legacy_sync))
+        with self.assertRaises(HTTPError) as error:
+            self.request("/api/labels?subject=s5&sequence=curl_1")
+        self.assertEqual(error.exception.code, 409)
+        self.assertIn("sync", json.load(error.exception)["error"])
+        self.assertEqual(json.loads((self.root / "s5/label/curl_1.json").read_text()), legacy_sync)
         legacy = {**document, "sequence": "curl_1", "annotations": [{**document["annotations"][0]}]}
         legacy["annotations"][0].pop("phase")
         (self.root / "s5/label/curl_1.json").write_text(json.dumps(legacy))

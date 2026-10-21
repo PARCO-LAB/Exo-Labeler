@@ -127,10 +127,8 @@ def validate_labels(document, subject, sequence, files):
             raise ValueError("Label non prevista per questa sequenza")
         if (record["level"], record["label"], record["phase"]) not in phases:
             raise ValueError("Fase non prevista per questa label")
-        if record["label"] == "sync" and (record["level"] != "aux" or start != end):
-            raise ValueError("sync deve indicare un solo frame")
         t_start = (start - 1) / 30
-        t_end = t_start if record["label"] == "sync" and record["level"] == "aux" else end / 30
+        t_end = end / 30
         if (type(record["t_start"]) not in (int, float) or type(record["t_end"]) not in (int, float)
                 or not math.isfinite(record["t_start"]) or not math.isfinite(record["t_end"])
                 or abs(record["t_start"] - t_start) > 0.000001 or abs(record["t_end"] - t_end) > 0.000001):
@@ -386,6 +384,12 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     raise ValueError("File di label troppo grande")
                 if content is not None:
                     document = json.loads(content)
+                    if (isinstance(document, dict) and isinstance(document.get("annotations"), list)
+                            and any(isinstance(record, dict) and record.get("level") == "aux"
+                                    and record.get("label") == "sync" for record in document["annotations"])):
+                        self.send_json({"error": "Il file contiene annotazioni sync, rimosse dallo schema: "
+                                        "migrazione manuale necessaria prima di modificarlo."}, HTTPStatus.CONFLICT)
+                        return
                     upgraded = False
                     if isinstance(document, dict) and document.get("schema_version") != LABEL_SCHEMA["schema_version"]:
                         old_version = document.get("schema_version")

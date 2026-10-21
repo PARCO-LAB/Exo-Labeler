@@ -56,9 +56,8 @@ istanti reali delle camere dipende dalla sincronizzazione dei file originali.
 Aprire **Label** e cliccare una voce per iniziare l'annotazione al frame
 visualizzato. Passando il mouse o usando la tastiera su una voce compare la
 definizione presente in `label_schema.json`; per le label mid e low, prive di
-definizione nello schema 0.4, compare un avviso. Le annotazioni sono comuni alle tre camere. Per una label con durata,
-raggiungere il frame finale e premere **End**; `sync` è un evento puntuale e si
-chiude subito. Le azioni con fasi diverse (per esempio `move · wind_up` e
+definizione nello schema 0.4, compare un avviso. Le annotazioni sono comuni alle tre camere. Per ogni label,
+raggiungere il frame finale e premere **End**. Le azioni con fasi diverse (per esempio `move · wind_up` e
 `hold · waiting`) sono scelte distinte. La timeline ha righello in frame e
 testina verticale; sotto il righello, ogni livello e nome di label ha una
 traccia. Il righello mostra un segno ogni 10 frame e il numero ogni 50;
@@ -112,7 +111,7 @@ Il JSON contiene `schema_version`, `subject`, `sequence`, `fps`, `workflow_stage
 più `start_frame`, `end_frame`, `direction` e `location`. Gli indici dei frame iniziano da
 **1** e gli estremi dell'intervallo sono inclusivi. `t_start` è l'istante
 iniziale del primo frame; `t_end` è il confine subito dopo l'ultimo frame
-incluso. Per `sync`, `start_frame = end_frame` e `t_start = t_end`.
+incluso.
 I JSON 0.1, 0.2 e 0.3 vuoti si aprono come 0.4. I JSON 0.2 e 0.3 con
 annotazioni vengono convertiti in memoria se tutti i valori rispettano le
 nuove regole; ai record 0.2 viene aggiunto `location: null`. Il file originale

@@ -112,10 +112,11 @@ def main():
             assert tooltip["visible"] and expected in tooltip["text"], tooltip
             assert tooltip["right"] <= tooltip["width"] and tooltip["bottom"] <= tooltip["height"], tooltip
         focus_tip = webdriver(endpoint + "/execute/sync", {"script":
-            "let chip=[...document.querySelectorAll('.label-chip')].find(x=>x.textContent==='sync');"
+            "let chip=[...document.querySelectorAll('.label-chip')].find(x=>x.textContent==='invalid');"
             "chip.focus();let t=document.getElementById('labelTooltip');"
-            "return {visible:!t.hidden,text:t.textContent,description:chip.getAttribute('aria-description')}" , "args": []})
-        assert focus_tip["visible"] and "align sensor clocks" in focus_tip["text"], focus_tip
+            "return {visible:!t.hidden,text:t.textContent,description:chip.getAttribute('aria-description'),"
+            "syncAbsent:![...document.querySelectorAll('.label-chip')].some(x=>x.textContent==='sync')}" , "args": []})
+        assert focus_tip["visible"] and "Segment to exclude" in focus_tip["text"] and focus_tip["syncAbsent"], focus_tip
         assert focus_tip["description"] == focus_tip["text"], focus_tip
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('labelsPanel').open=false", "args": []})
         initial = state["hashes"][0]
@@ -402,11 +403,13 @@ def main():
         assert "#2 curl_cycle" in low_parent["text"] and not low_parent["checked"], low_parent
         assert low_parent["load"], low_parent
         go_to(60)
-        assert click_label("Aux", "sync")
-        point = webdriver(endpoint + "/execute/sync", {"script":
+        assert click_label("Aux", "invalid")
+        go_to(62)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        interval = webdriver(endpoint + "/execute/sync", {"script":
             "return {rows:[...document.querySelectorAll('.annotation-caption')].map(x=>x.textContent),"
             "end:document.getElementById('endLabel').disabled}", "args": []})
-        assert len(point["rows"]) == 4 and point["end"] and "frame 60" in point["rows"][3], point
+        assert len(interval["rows"]) == 4 and interval["end"] and "frame 60–62" in interval["rows"][3], interval
         webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
         for _ in range(50):
             saved = json.loads((ViewerTest.root / "s5/label/curl_0.json").read_text())
@@ -420,7 +423,8 @@ def main():
         assert saved["annotations"][2]["parents"] == [2] and saved["annotations"][2]["external_load"] == "both", saved
         assert saved["annotations"][2]["contact_points"] == "both" and saved["annotations"][2]["target"] == "dumbbells", saved
         assert saved["annotations"][2]["phase"] is None, saved
-        assert saved["annotations"][3]["level"] == "aux" and saved["annotations"][3]["t_start"] == saved["annotations"][3]["t_end"], saved
+        assert saved["annotations"][3]["label"] == "invalid" and saved["annotations"][3]["t_start"] == 59 / 30, saved
+        assert saved["annotations"][3]["t_end"] == 62 / 30, saved
         reopened_parent = webdriver(endpoint + "/execute/sync", {"script":
             "document.querySelector('[data-record-id=\"2\"] .annotation-caption').click();"
             "let choice=document.querySelector('#parentChoices label'),"
@@ -453,7 +457,7 @@ def main():
             "trackHeight:document.getElementById('annotationRows').getBoundingClientRect().height}",
             "args": []})
         assert grouped["inside"] and grouped["rows"] == 4, grouped
-        assert grouped["names"] == ["high · curl", "mid · curl_cycle", "low · flexion", "aux · sync"], grouped
+        assert grouped["names"] == ["high · curl", "mid · curl_cycle", "low · flexion", "aux · invalid"], grouped
         assert grouped["counts"] == [2, 1, 2, 1], grouped
         assert len(set(grouped["highY"])) == 2 and len(set(grouped["lowY"])) == 2, grouped
         assert all(abs(x - grouped["rulerX"]) < 1 for x in grouped["tracksX"]), grouped
@@ -493,11 +497,13 @@ def main():
         assert len(saved["annotations"]) == 6, saved
         assert saved["annotations"][1]["parents"] == [1, 5], saved
         go_to(119)
-        assert click_label("Aux", "sync")
+        assert click_label("Aux", "invalid")
         go_to(120)
-        assert click_label("Aux", "sync")
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        assert click_label("Aux", "invalid")
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
         edge = webdriver(endpoint + "/execute/sync", {"script":
-            "let row=[...document.querySelectorAll('.annotation-row')].find(x=>x.querySelector('.track-name').textContent==='aux · sync');"
+            "let row=[...document.querySelectorAll('.annotation-row')].find(x=>x.querySelector('.track-name').textContent==='aux · invalid');"
             "let right=row.querySelector('.annotation-track').getBoundingClientRect().right;"
             "let bars=[...row.querySelectorAll('.annotation-bar')].map(x=>x.getBoundingClientRect());"
             "return {rows:document.querySelectorAll('.annotation-row').length,count:bars.length,"
