@@ -32,18 +32,29 @@
     .videos.one .camera { width: 100%; }
     .videos.two .camera { width: calc((100% - 10px) / 2); }
     .camera[hidden] { display: none; }
-    .camera h2 { margin: 0; padding: 3px 8px; font-size: .75rem; font-weight: 600; }
+    .camera-header { display: flex; align-items: center; justify-content: space-between; min-height: 29px; padding: 2px 5px 2px 8px; }
+    .camera h2 { margin: 0; font-size: .75rem; font-weight: 600; }
+    .zoom-controls { display: flex; align-items: center; gap: 3px; font-size: .7rem; font-variant-numeric: tabular-nums; }
+    .zoom-controls button { min-width: 23px; padding: 0 4px; font-size: .85rem; line-height: 20px; }
+    .zoom-value { min-width: 35px; text-align: center; }
     .picture { position: relative; flex: 1; min-height: 0; background: #050709; overflow: hidden; }
     video, canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
     canvas { display: none; position: absolute; inset: 0; background: #050709; }
     .videos.frozen canvas { display: block; }
     .videos.frozen video { opacity: .01; }
     .videos.seeking .picture::after { content: ''; position: absolute; inset: 0; background: #050709; }
-    #bodyVideo, #bodyCanvas { transform: rotate(180deg); }
+    .picture video, .picture canvas { transform: translate(var(--pan-x, 0px), var(--pan-y, 0px)) scale(var(--zoom, 1)); }
+    #bodyVideo, #bodyCanvas { transform: translate(var(--pan-x, 0px), var(--pan-y, 0px)) scale(var(--zoom, 1)) rotate(180deg); }
+    .picture.panning { cursor: grabbing !important; }
     .labels-panel { margin: 0 0 10px; padding: 8px 12px; border: 1px solid #354250; border-radius: 8px; background: #1a212a; }
     .labels-panel summary { cursor: pointer; font-weight: 600; }
     .workflow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; padding: 7px 10px; border: 1px solid #58758a; border-radius: 7px; background: #1c2d3a; font-size: .84rem; }
     .workflow[hidden] { display: none; }
+    .lease-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; border: 1px solid #b78942; border-radius: 7px; background: #332818; color: #f6d998; font-size: .84rem; }
+    .lease-bar[hidden] { display: none; }
+    .lease-bar button { padding: 3px 8px; font-size: .82rem; }
+    body.lease-readonly .annotation-bar, body.lease-readonly .calibration-marker,
+    body.lease-readonly .matrix-delete, body.lease-readonly .matrix-vertex { pointer-events: none; }
     .workflow span { flex: 1 1 260px; }
     .workflow button { padding: 4px 9px; font-size: .82rem; }
     #palette { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
@@ -63,6 +74,7 @@
     .calibration-marker::before { content: ''; flex: none; width: 8px; height: 8px; border: 1px solid #fff; border-radius: 50%; background: #f15b4f; box-shadow: 0 1px 3px #000; }
     .calibration-marker.right { flex-direction: row-reverse; transform: translate(calc(-100% + 4px), -50%); }
     .calibration-marker:hover { background: none; }
+    .calibration-marker:disabled, .annotation-caption:disabled, .track-name:disabled { opacity: 1; }
     .calibration-marker:active { cursor: grabbing; }
     .matrix-outline { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     .matrix-outline polygon { fill: #31d4aa3d; stroke: #40f5c4; stroke-width: 2; }
@@ -165,14 +177,15 @@
     </div>
   </div>
 
+  <div id="leaseBar" class="lease-bar" hidden role="status" aria-live="polite"><span id="leaseText"></span><button id="leaseRetry" type="button">Riprova</button></div>
   <div id="workflow" class="workflow" hidden><span id="workflowText"></span><button id="workflowAdvance" type="button"></button></div>
   <details id="labelsPanel" class="labels-panel"><summary>Label · clicca al frame corrente</summary><div id="palette"></div><div id="labelTooltip" role="tooltip" hidden></div></details>
   <div id="calibrationPalette" hidden aria-label="Punti di calibrazione"></div>
 
   <div id="videos" class="videos">
-    <section class="camera" data-camera="body"><h2>Body</h2><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="body"></div></div></section>
-    <section class="camera" data-camera="external"><h2>Esterna</h2><div class="picture"><video id="externalVideo" muted playsinline preload="metadata"></video><canvas id="externalCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="external"></div></div></section>
-    <section class="camera" data-camera="aria"><h2>Aria</h2><div class="picture"><video id="ariaVideo" muted playsinline preload="metadata"></video><canvas id="ariaCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="aria"></div></div></section>
+    <section class="camera" data-camera="body"><div class="camera-header"><h2>Body</h2><div class="zoom-controls"><button type="button" data-zoom="out" aria-label="Riduci zoom Body" title="Riduci zoom Body">−</button><span class="zoom-value">100%</span><button type="button" data-zoom="in" aria-label="Aumenta zoom Body" title="Aumenta zoom Body">+</button></div></div><div class="picture"><video id="bodyVideo" muted playsinline preload="metadata"></video><canvas id="bodyCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="body"></div></div></section>
+    <section class="camera" data-camera="external"><div class="camera-header"><h2>Esterna</h2><div class="zoom-controls"><button type="button" data-zoom="out" aria-label="Riduci zoom Esterna" title="Riduci zoom Esterna">−</button><span class="zoom-value">100%</span><button type="button" data-zoom="in" aria-label="Aumenta zoom Esterna" title="Aumenta zoom Esterna">+</button></div></div><div class="picture"><video id="externalVideo" muted playsinline preload="metadata"></video><canvas id="externalCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="external"></div></div></section>
+    <section class="camera" data-camera="aria"><div class="camera-header"><h2>Aria</h2><div class="zoom-controls"><button type="button" data-zoom="out" aria-label="Riduci zoom Aria" title="Riduci zoom Aria">−</button><span class="zoom-value">100%</span><button type="button" data-zoom="in" aria-label="Aumenta zoom Aria" title="Aumenta zoom Aria">+</button></div></div><div class="picture"><video id="ariaVideo" muted playsinline preload="metadata"></video><canvas id="ariaCanvas" aria-hidden="true"></canvas><div class="calibration-overlay" data-camera="aria"></div></div></section>
   </div>
 
   <div id="timeline" class="timeline">
@@ -197,7 +210,7 @@
     <p id="status" role="status" aria-live="polite">Caricamento catalogo…</p>
   </div>
 </main>
-<dialog id="helpDialog" aria-label="Aiuto"><p id="helpDetails"></p><p>Frecce ← →: un frame · Barra spaziatrice: riproduci o pausa</p><p>Trascina l'angolo in basso a destra di una finestra per ridimensionarla.</p><button id="closeHelp" type="button">Chiudi</button></dialog>
+<dialog id="helpDialog" aria-label="Aiuto"><p id="helpDetails"></p><p>Frecce ← →: un frame · Barra spaziatrice: riproduci o pausa</p><p>Trascina l'angolo in basso a destra di una finestra per ridimensionarla.</p><p>Usa +, − o la rotella sull'immagine per lo zoom; Maiusc+trascina per spostarla. Dimensioni ripristina anche lo zoom.</p><button id="closeHelp" type="button">Chiudi</button></dialog>
 <dialog id="editDialog" aria-label="Modifica annotazione">
   <form id="editForm">
     <h2 id="editTitle"></h2>
@@ -232,6 +245,7 @@
   const calibrationSlider = document.getElementById('calibrationSlider');
   const calibrationPalette = document.getElementById('calibrationPalette');
   const overlays = Object.fromEntries(cameras.map(camera => [camera, document.querySelector(`.calibration-overlay[data-camera="${camera}"]`)]));
+  const views = Object.fromEntries(cameras.map(camera => [camera, {zoom: 1, x: 0, y: 0}]));
   const scrub = document.getElementById('scrub');
   const ruler = document.getElementById('ruler');
   const gridLines = document.getElementById('gridLines');
@@ -244,6 +258,9 @@
   const workflow = document.getElementById('workflow');
   const workflowText = document.getElementById('workflowText');
   const workflowAdvance = document.getElementById('workflowAdvance');
+  const leaseBar = document.getElementById('leaseBar');
+  const leaseText = document.getElementById('leaseText');
+  const leaseRetry = document.getElementById('leaseRetry');
   const labelsPanel = document.getElementById('labelsPanel');
   const labelTooltip = document.getElementById('labelTooltip');
   const annotationRows = document.getElementById('annotationRows');
@@ -276,6 +293,11 @@
   let editingId = null;
   let activeSubject = '';
   let activeSequence = '';
+  let leaseToken = null;
+  let leaseOwned = false;
+  let leasePending = false;
+  let leaseState = 'loading';
+  let leaseExpiresAt = 0;
   let draggingHandle = null;
   let mode = 'labeler';
   let calibrationPoints = [];
@@ -300,6 +322,106 @@
     return `/api/calibration?subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`;
   }
 
+  function leaseUrl(s = activeSubject, q = activeSequence, release = false) {
+    return `/api/lease${release ? '/release' : ''}?subject=${encodeURIComponent(s)}&sequence=${encodeURIComponent(q)}`;
+  }
+
+  function releaseLease(s, q, token) {
+    if (!token) return;
+    const url = leaseUrl(s, q, true);
+    const body = new Blob([JSON.stringify({token})], {type: 'application/json'});
+    if (!navigator.sendBeacon?.(url, body))
+      fetch(url, {method: 'POST', body, keepalive: true}).catch(() => {});
+  }
+
+  function renderLease() {
+    leaseBar.hidden = !activeSequence || leaseOwned;
+    leaseText.textContent = leaseState === 'busy' ? 'Sequenza in uso da un’altra sessione. Puoi guardare i video, ma non modificare le annotazioni.'
+      : leaseState === 'lost' ? 'Controllo perso. Le modifiche non salvate restano in questa scheda; riprova prima di modificarle o salvarle.'
+      : leaseState === 'error' ? 'Controllo della sequenza non disponibile. Riprova.' : 'Richiesta di controllo della sequenza…';
+    leaseRetry.disabled = leasePending;
+    document.body.classList.toggle('lease-readonly', !leaseOwned);
+    endButton.disabled = !leaseOwned || pendingId === null;
+    if (!leaseOwned) {
+      selectedCalibrationLabel = null;
+      if (editDialog.open) editDialog.close();
+      if (chooseDialog.open) chooseDialog.close();
+      draggingHandle = null;
+    }
+    renderPalette();
+    renderCalibrationPalette();
+    renderAnnotations();
+    renderCalibrationPoints();
+    updateSaveButton();
+  }
+
+  async function refreshSavedDocuments(turn) {
+    const [labelResponse, calibrationResponse] = await Promise.all([
+      fetch(labelUrl()), calibrationLoaded ? fetch(calibrationUrl()) : Promise.resolve(null)]);
+    const savedLabels = await labelResponse.json();
+    const savedCalibration = calibrationResponse ? await calibrationResponse.json() : null;
+    if (turn !== loading) return;
+    labelProblem = labelResponse.ok ? '' : savedLabels.error || `HTTP ${labelResponse.status}`;
+    annotations = labelResponse.ok ? savedLabels.data.annotations : [];
+    workflowStage = labelResponse.ok ? savedLabels.workflow_stage : null;
+    revision = labelResponse.ok ? savedLabels.revision : null;
+    pendingId = null;
+    if (calibrationResponse) {
+      calibrationProblem = calibrationResponse.ok ? '' : savedCalibration.error || `HTTP ${calibrationResponse.status}`;
+      calibrationPoints = calibrationResponse.ok ? savedCalibration.data.points : [];
+      matrixRegions = calibrationResponse.ok ? savedCalibration.data.matrix || [] : [];
+      calibrationRevision = calibrationResponse.ok ? savedCalibration.revision : null;
+    }
+  }
+
+  function loseLease(state) {
+    leaseOwned = false;
+    leaseExpiresAt = 0;
+    leaseState = state;
+    renderLease();
+  }
+
+  async function claimLease(refresh = false) {
+    if (!activeSequence || leasePending) return false;
+    const turn = loading;
+    const s = activeSubject, q = activeSequence;
+    const wasOwned = leaseOwned;
+    let acquiredToken = null;
+    leasePending = true;
+    if (!wasOwned) { leaseState = 'loading'; renderLease(); }
+    try {
+      const requestedAt = Date.now();
+      const response = await fetch(leaseUrl(s, q), {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: leaseToken})});
+      const result = await response.json();
+      if (response.ok) acquiredToken = result.token;
+      if (turn !== loading) {
+        if (acquiredToken) releaseLease(s, q, acquiredToken);
+        return false;
+      }
+      if (!response.ok) { loseLease(response.status === 423 ? 'busy' : 'error'); return false; }
+      if (refresh && !dirty && !calibrationDirty && !matrixDraft) await refreshSavedDocuments(turn);
+      if (turn !== loading) { releaseLease(s, q, acquiredToken); return false; }
+      leaseToken = acquiredToken;
+      leaseOwned = true;
+      leaseExpiresAt = requestedAt + result.expires_in * 1000 - 5000;
+      leaseState = 'owned';
+      if (!wasOwned) renderLease();
+      if (refresh && (dirty || calibrationDirty || matrixDraft))
+        message('Controllo ripreso. Hai modifiche locali: se il file è cambiato, il salvataggio sarà respinto.', 'warn');
+      return true;
+    } catch (error) {
+      if (acquiredToken && !wasOwned) releaseLease(s, q, acquiredToken);
+      if (turn === loading) loseLease('error');
+      return false;
+    } finally {
+      if (turn === loading) {
+        leasePending = false;
+        leaseRetry.disabled = false;
+      }
+    }
+  }
+
   async function getJson(url) {
     const response = await fetch(url);
     const data = await response.json();
@@ -309,8 +431,8 @@
 
   function updateSaveButton() {
     saveButton.disabled = mode === 'calibration'
-      ? calibrationSaving || (!calibrationDirty && !matrixDraft) || !frames || !calibrationLoaded || !!calibrationProblem
-      : saving || !dirty || !frames || pendingId !== null || !labelSchema?.task || !!labelProblem;
+      ? !leaseOwned || calibrationSaving || (!calibrationDirty && !matrixDraft) || !frames || !calibrationLoaded || !!calibrationProblem
+      : !leaseOwned || saving || !dirty || !frames || pendingId !== null || !labelSchema?.task || !!labelProblem;
   }
 
   function markDirty() {
@@ -359,7 +481,7 @@
       name.type = 'button';
       name.textContent = `${records[0].level} · ${records[0].label}`;
       name.title = `Modifica ${name.textContent}`;
-      name.disabled = records.every(record => record.id === pendingId);
+      name.disabled = !leaseOwned || records.every(record => record.id === pendingId);
       name.addEventListener('click', () => openTrack(records));
       const track = document.createElement('div');
       track.className = 'annotation-track';
@@ -387,20 +509,20 @@
         caption.type = 'button';
         caption.textContent = recordSummary(record);
         caption.title = recordSummary(record);
-        caption.disabled = record.id === pendingId;
+        caption.disabled = !leaseOwned || record.id === pendingId;
         caption.addEventListener('click', () => openEditor(record.id));
         bar.append(caption);
         for (const edge of ['start', 'end']) {
           const handle = document.createElement('div');
           handle.className = `annotation-handle ${edge}`;
           handle.role = 'slider';
-          handle.tabIndex = record.id === pendingId ? -1 : 0;
+          handle.tabIndex = !leaseOwned || record.id === pendingId ? -1 : 0;
           handle.setAttribute('aria-label', `${edge === 'start' ? 'Inizio' : 'Fine'} ${record.label}`);
           handle.setAttribute('aria-valuemin', '1');
           handle.setAttribute('aria-valuemax', String(frames));
           handle.setAttribute('aria-valuenow', String(record[edge === 'start' ? 'start_frame' : 'end_frame']));
           handle.addEventListener('pointerdown', event => {
-            if (record.id === pendingId) return;
+            if (!leaseOwned || record.id === pendingId) return;
             event.preventDefault();
             event.stopPropagation();
             draggingHandle = {record, edge, track, bar, caption};
@@ -420,7 +542,7 @@
           handle.addEventListener('pointerup', () => { draggingHandle = null; renderAnnotations(); });
           handle.addEventListener('pointercancel', () => { draggingHandle = null; renderAnnotations(); });
           handle.addEventListener('keydown', event => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            if (!leaseOwned || event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
             event.preventDefault();
             event.stopPropagation();
             adjustEdge(record, edge, record[edge === 'start' ? 'start_frame' : 'end_frame']
@@ -440,6 +562,7 @@
   }
 
   function adjustEdge(record, edge, frame) {
+    if (!leaseOwned) return;
     if (edge === 'start') {
       record.start_frame = Math.max(1, Math.min(record.end_frame, frame));
     } else {
@@ -464,7 +587,7 @@
     const next = levels[index + 1];
     workflowText.textContent = `Guida ${index + 1}/${levels.length} · ${names[workflowStage]}: aggiungi le label al frame corrente, poi conferma per continuare.`;
     workflowAdvance.textContent = next ? `Conferma e passa a ${names[next]}` : 'Conferma e termina la guida';
-    workflowAdvance.disabled = pendingId !== null || !frames;
+    workflowAdvance.disabled = !leaseOwned || pendingId !== null || !frames;
   }
 
   function renderMode() {
@@ -492,8 +615,8 @@
       chip.textContent = label;
       chip.classList.toggle('selected', selectedCalibrationLabel === label);
       chip.setAttribute('aria-pressed', String(selectedCalibrationLabel === label));
-      chip.draggable = !!frames && label !== 'matrix';
-      chip.disabled = !frames || !calibrationLoaded || !!calibrationProblem;
+      chip.draggable = leaseOwned && !!frames && label !== 'matrix';
+      chip.disabled = !leaseOwned || !frames || !calibrationLoaded || !!calibrationProblem;
       chip.addEventListener('dragstart', event => {
         event.dataTransfer.setData('application/x-exo-calibration', label);
         event.dataTransfer.effectAllowed = 'copy';
@@ -511,11 +634,12 @@
       const finish = document.createElement('button');
       finish.type = 'button';
       finish.textContent = 'Completa poligono';
-      finish.disabled = matrixDraft.vertices.length < 3 || matrixDraft.frame !== Number(slider.value) + 1;
+      finish.disabled = !leaseOwned || matrixDraft.vertices.length < 3 || matrixDraft.frame !== Number(slider.value) + 1;
       finish.addEventListener('click', finishMatrix);
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.textContent = 'Annulla';
+      cancel.disabled = !leaseOwned;
       cancel.addEventListener('click', () => {
         matrixDraft = null;
         renderCalibrationPalette();
@@ -532,10 +656,51 @@
     const video = videos[camera];
     if (!picture.width || !picture.height || !video.videoWidth || !video.videoHeight) return null;
     const scale = Math.min(picture.width / video.videoWidth, picture.height / video.videoHeight);
-    const width = video.videoWidth * scale;
-    const height = video.videoHeight * scale;
-    return {left: picture.left + (picture.width - width) / 2,
-      top: picture.top + (picture.height - height) / 2, width, height};
+    const view = views[camera];
+    const width = video.videoWidth * scale * view.zoom;
+    const height = video.videoHeight * scale * view.zoom;
+    return {left: picture.left + (picture.width - width) / 2 + view.x,
+      top: picture.top + (picture.height - height) / 2 + view.y, width, height};
+  }
+
+  function constrainView(camera) {
+    const picture = overlays[camera].parentElement.getBoundingClientRect();
+    const video = videos[camera];
+    if (!picture.width || !picture.height || !video.videoWidth || !video.videoHeight) return;
+    const scale = Math.min(picture.width / video.videoWidth, picture.height / video.videoHeight);
+    const view = views[camera];
+    const maxX = Math.max(0, (video.videoWidth * scale * view.zoom - picture.width) / 2);
+    const maxY = Math.max(0, (video.videoHeight * scale * view.zoom - picture.height) / 2);
+    view.x = Math.max(-maxX, Math.min(maxX, view.x));
+    view.y = Math.max(-maxY, Math.min(maxY, view.y));
+  }
+
+  function renderView(camera) {
+    const picture = overlays[camera].parentElement;
+    const view = views[camera];
+    picture.style.setProperty('--zoom', view.zoom);
+    picture.style.setProperty('--pan-x', `${view.x}px`);
+    picture.style.setProperty('--pan-y', `${view.y}px`);
+    picture.parentElement.querySelector('.zoom-value').textContent = `${Math.round(view.zoom * 100)}%`;
+    picture.parentElement.querySelector('[data-zoom="out"]').disabled = view.zoom <= 1;
+    picture.parentElement.querySelector('[data-zoom="in"]').disabled = view.zoom >= 8;
+    renderCalibrationPoints();
+  }
+
+  function setZoom(camera, zoom, clientX, clientY) {
+    const video = videos[camera];
+    if (!video.videoWidth || !video.videoHeight) return;
+    const view = views[camera];
+    const next = Math.max(1, Math.min(8, zoom));
+    if (next === view.zoom) return;
+    const picture = overlays[camera].parentElement.getBoundingClientRect();
+    const x = (clientX ?? picture.left + picture.width / 2) - picture.left - picture.width / 2;
+    const y = (clientY ?? picture.top + picture.height / 2) - picture.top - picture.height / 2;
+    view.x += (x - view.x) * (1 - next / view.zoom);
+    view.y += (y - view.y) * (1 - next / view.zoom);
+    view.zoom = next;
+    constrainView(camera);
+    renderView(camera);
   }
 
   function calibrationCoords(camera, clientX, clientY, clamp = false) {
@@ -565,9 +730,10 @@
   }
 
   async function placeCalibrationPoint(camera, label, coords) {
+    if (!leaseOwned) return;
     const turn = loading;
     const previousSelection = selectedCalibrationLabel;
-    if (!await exactFrame() || turn !== loading || mode !== 'calibration') {
+    if (!await exactFrame() || turn !== loading || mode !== 'calibration' || !leaseOwned) {
       if (turn === loading) message('Attendi che le tre camere mostrino lo stesso frame.', 'error');
       return;
     }
@@ -626,7 +792,7 @@
         dot.setAttribute('r', tag === 'polygon' ? 5 : 3);
         if (tag === 'polygon' && !draft) {
           dot.classList.add('matrix-vertex');
-          dot.setAttribute('tabindex', '0');
+          dot.setAttribute('tabindex', leaseOwned ? '0' : '-1');
           dot.setAttribute('role', 'button');
           const updateTitle = () => dot.setAttribute('aria-label',
             `Vertice ${index + 1} di matrix, camera ${camera}, frame ${frame}, x ${vertex.x}, y ${vertex.y}. Trascina o usa le frecce per spostarlo.`);
@@ -639,6 +805,7 @@
             dot.setAttribute('cy', position.y);
           };
           const commit = coords => {
+            if (!leaseOwned) return;
             if (vertices.some((item, i) => i !== index && item.x === coords.x && item.y === coords.y)) {
               message('I vertici di matrix devono essere distinti.', 'warn');
               show(vertex);
@@ -665,7 +832,7 @@
           let dragStart = null;
           let moved = false;
           dot.addEventListener('pointerdown', event => {
-            if (event.button !== 0) return;
+            if (!leaseOwned || event.button !== 0) return;
             dragStart = {x: event.clientX, y: event.clientY};
             moved = false;
             dot.setPointerCapture(event.pointerId);
@@ -689,6 +856,7 @@
           dot.addEventListener('pointercancel', () => { dragStart = null; show(vertex); });
           dot.addEventListener('click', event => event.stopPropagation());
           dot.addEventListener('keydown', event => {
+            if (!leaseOwned) return;
             const delta = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]}[event.key];
             if (!delta) return;
             event.preventDefault();
@@ -710,6 +878,7 @@
       remove.className = 'matrix-delete';
       remove.textContent = '× matrix';
       remove.title = `Elimina matrix · ${camera} · frame ${frame}`;
+      remove.disabled = !leaseOwned;
       remove.addEventListener('click', event => {
         event.stopPropagation();
         if (!window.confirm(`Eliminare matrix dalla camera ${camera} al frame ${frame}?`)) return;
@@ -722,8 +891,9 @@
   }
 
   async function addMatrixVertex(camera, coords) {
+    if (!leaseOwned) return;
     const turn = loading;
-    if (!await exactFrame() || turn !== loading || mode !== 'calibration') {
+    if (!await exactFrame() || turn !== loading || mode !== 'calibration' || !leaseOwned) {
       if (turn === loading) message('Attendi che le tre camere mostrino lo stesso frame.', 'error');
       return;
     }
@@ -745,7 +915,7 @@
   }
 
   function finishMatrix() {
-    if (!matrixDraft || matrixDraft.vertices.length < 3) return;
+    if (!leaseOwned || !matrixDraft || matrixDraft.vertices.length < 3) return;
     if (matrixDraft.frame !== Number(slider.value) + 1 || playing) {
       message(`Torna al frame ${matrixDraft.frame} e metti in pausa prima di completare matrix.`, 'warn');
       return;
@@ -778,6 +948,7 @@
         const marker = document.createElement('button');
         marker.type = 'button';
         marker.className = 'calibration-marker';
+        marker.disabled = !leaseOwned;
         positionCalibrationMarker(marker, camera, point);
         marker.textContent = point.label;
         function updateMarkerTitle() {
@@ -788,7 +959,7 @@
         let dragStart = null;
         let moved = false;
         marker.addEventListener('pointerdown', event => {
-          if (event.button !== 0) return;
+          if (!leaseOwned || event.button !== 0) return;
           dragStart = {x: event.clientX, y: event.clientY};
           moved = false;
           marker.setPointerCapture(event.pointerId);
@@ -821,6 +992,7 @@
         });
         marker.addEventListener('click', event => {
           event.stopPropagation();
+          if (!leaseOwned) return;
           if (wasCalibrationDragClick(event, camera)) return;
           if (!window.confirm(`Eliminare ${point.label} dalla camera ${camera} al frame ${frame}?`)) return;
           calibrationPoints = calibrationPoints.filter(item => item !== point);
@@ -835,7 +1007,7 @@
   async function dropCalibration(event, camera) {
     event.preventDefault();
     const label = event.dataTransfer.getData('application/x-exo-calibration');
-    if (mode !== 'calibration' || !frames || !calibrationLoaded || calibrationProblem
+    if (!leaseOwned || mode !== 'calibration' || !frames || !calibrationLoaded || calibrationProblem
         || !calibrationLabels.includes(label)) return;
     const coords = calibrationCoords(camera, event.clientX, event.clientY);
     if (!coords) {
@@ -867,6 +1039,7 @@
         chip.className = 'label-chip';
         chip.type = 'button';
         chip.textContent = choice.phase ? `${choice.label} · ${choice.phase}` : choice.label;
+        chip.disabled = !leaseOwned;
         chip.dataset.definition = choice.definition || 'Definizione non presente nello schema.';
         chip.setAttribute('aria-description', chip.dataset.definition);
         chip.addEventListener('mouseenter', event => showLabelTooltip(chip, event.clientX, event.clientY));
@@ -913,12 +1086,12 @@
   }
 
   async function addChoice(choice) {
-    if (labelProblem || !frames || !labelSchema?.choices.some(item => item.level === choice.level && item.label === choice.label
+    if (!leaseOwned || labelProblem || !frames || !labelSchema?.choices.some(item => item.level === choice.level && item.label === choice.label
         && item.phase === choice.phase)) return;
     if (workflowStage !== 'free' && !workflowLevels().slice(0, workflowLevels().indexOf(workflowStage) + 1)
         .includes(choice.level)) return;
     if (pendingId !== null) { message('Chiudi prima l’intervallo corrente con End.', 'warn'); return; }
-    if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
+    if (!await exactFrame() || !leaseOwned) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
     const record = newRecord(choice, pendingFrame + 1);
     message(`${record.label}: inizio al frame ${record.start_frame}. Vai al frame finale e premi End.`);
   }
@@ -934,6 +1107,7 @@
   }
 
   function openTrack(records) {
+    if (!leaseOwned) return;
     const editable = records.filter(record => record.id !== pendingId);
     if (editable.length === 1) { openEditor(editable[0].id); return; }
     if (!editable.length) return;
@@ -949,6 +1123,7 @@
   }
 
   function openEditor(id) {
+    if (!leaseOwned) return;
     const record = annotations.find(item => item.id === id);
     if (!record || id === pendingId) return;
     editingId = id;
@@ -1214,9 +1389,15 @@
   }
 
   async function loadSequence() {
+    releaseLease(activeSubject, activeSequence, leaseToken);
     const turn = ++loading;
     activeSubject = subject.value;
     activeSequence = sequence.value;
+    leaseToken = null;
+    leaseOwned = false;
+    leasePending = false;
+    leaseState = 'loading';
+    leaseExpiresAt = 0;
     selectionSummary.textContent = `Soggetto ${activeSubject} · Sequenza ${activeSequence}`;
     stopPlayback();
     cancelSeek();
@@ -1247,11 +1428,14 @@
     renderAnnotations();
     renderCalibrationPalette();
     renderCalibrationPoints();
+    renderLease();
     grid.classList.add('frozen');
     grid.classList.remove('seeking');
     seekState.textContent = '';
     cameras.forEach(camera => {
       displayed[camera] = null;
+      Object.assign(views[camera], {zoom: 1, x: 0, y: 0});
+      renderView(camera);
       const canvas = canvases[camera];
       canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
     });
@@ -1260,6 +1444,8 @@
     updateReadout(0);
     message('Preparazione dei video… La prima apertura può richiedere alcuni secondi.');
     try {
+      await claimLease();
+      if (turn !== loading) return;
       const query = `subject=${encodeURIComponent(subject.value)}&sequence=${encodeURIComponent(sequence.value)}`;
       const [data, schema, labelResponse] = await Promise.all([
         getJson(`/api/sequence?${query}`), getJson(`/api/schema?${query}`), fetch(`/api/labels?${query}`)]);
@@ -1290,6 +1476,7 @@
         video.load();
       })));
       if (turn !== loading) return;
+      cameras.forEach(camera => { constrainView(camera); renderView(camera); });
       slider.max = frames - 1;
       calibrationSlider.max = frames - 1;
       updateRuler();
@@ -1315,7 +1502,7 @@
   }
 
   async function saveLabels() {
-    if (!dirty || saving || pendingId !== null || !frames || !labelSchema?.task || labelProblem) return;
+    if (!leaseOwned || !dirty || saving || pendingId !== null || !frames || !labelSchema?.task || labelProblem) return;
     saving = true;
     updateSaveButton();
     const turn = loading;
@@ -1323,9 +1510,11 @@
     const document = {schema_version: labelSchema.schema_version, subject: subject.value,
       sequence: sequence.value, fps: 30, workflow_stage: workflowStage, annotations};
     try {
-      const response = await fetch(labelUrl(), {method: 'POST', headers: {'Content-Type': 'application/json'},
+      const response = await fetch(labelUrl(), {method: 'POST', headers: {'Content-Type': 'application/json',
+        'X-Sequence-Lease': leaseToken},
         body: JSON.stringify({revision, data: document})});
       const result = await response.json();
+      if (response.status === 423) loseLease('lost');
       if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
       if (turn !== loading) return;
       revision = result.revision;
@@ -1348,7 +1537,7 @@
       message(`Completa o annulla prima matrix su ${matrixDraft.camera}, frame ${matrixDraft.frame}.`, 'warn');
       return;
     }
-    if (!calibrationDirty || calibrationSaving || !frames || !calibrationLoaded || calibrationProblem) return;
+    if (!leaseOwned || !calibrationDirty || calibrationSaving || !frames || !calibrationLoaded || calibrationProblem) return;
     calibrationSaving = true;
     updateSaveButton();
     const turn = loading;
@@ -1356,9 +1545,11 @@
     const document = {subject: subject.value, sequence: sequence.value, fps: 30,
       coordinate_space: 'source_pixels', points: calibrationPoints, matrix: matrixRegions};
     try {
-      const response = await fetch(calibrationUrl(), {method: 'POST', headers: {'Content-Type': 'application/json'},
+      const response = await fetch(calibrationUrl(), {method: 'POST', headers: {'Content-Type': 'application/json',
+        'X-Sequence-Lease': leaseToken},
         body: JSON.stringify({revision: calibrationRevision, data: document})});
       const result = await response.json();
+      if (response.status === 423) loseLease('lost');
       if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
       if (turn !== loading) return;
       calibrationRevision = result.revision;
@@ -1402,8 +1593,8 @@
   }
 
   async function closeInterval() {
-    if (pendingId === null) return;
-    if (!await exactFrame()) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
+    if (!leaseOwned || pendingId === null) return;
+    if (!await exactFrame() || !leaseOwned) { message('Attendi che le tre camere mostrino lo stesso frame.', 'error'); return; }
     const record = annotations.find(item => item.id === pendingId);
     const end = Number(slider.value) + 1;
     if (end < record.start_frame) {
@@ -1446,7 +1637,25 @@
   });
   sequence.addEventListener('change', () => { if (confirmSequenceChange()) loadSequence(); });
   window.addEventListener('beforeunload', event => { if (dirty || calibrationDirty || matrixDraft) { event.preventDefault(); event.returnValue = ''; } });
-  window.addEventListener('resize', () => { renderAnnotations(); renderCalibrationPoints(); });
+  window.addEventListener('pagehide', () => releaseLease(activeSubject, activeSequence, leaseToken));
+  leaseRetry.addEventListener('click', () => claimLease(true));
+  setInterval(() => {
+    if (leaseOwned && Date.now() >= leaseExpiresAt) {
+      loseLease('lost');
+      if (!leasePending) claimLease(true);
+      return;
+    }
+    if (leaseOwned && !leasePending) claimLease();
+  }, 20000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !leaseOwned || leasePending) return;
+    if (Date.now() >= leaseExpiresAt) { loseLease('lost'); claimLease(true); }
+    else claimLease();
+  });
+  window.addEventListener('resize', () => {
+    renderAnnotations();
+    cameras.forEach(camera => { constrainView(camera); renderView(camera); });
+  });
   document.getElementById('previous').addEventListener('click', () => seek(Number(slider.value) - 1));
   document.getElementById('next').addEventListener('click', () => seek(Number(slider.value) + 1));
   endButton.addEventListener('click', closeInterval);
@@ -1454,7 +1663,7 @@
   workflowAdvance.addEventListener('click', () => {
     const levels = workflowLevels();
     const index = levels.indexOf(workflowStage);
-    if (index < 0 || pendingId !== null || !frames || labelProblem) return;
+    if (!leaseOwned || index < 0 || pendingId !== null || !frames || labelProblem) return;
     const next = levels[index + 1] || 'free';
     const title = next === 'free' ? 'terminare la guida e sbloccare tutte le label' : `passare alle label ${next}`;
     if (!window.confirm(`Confermi di aver terminato il livello ${workflowStage} e di voler ${title}?`)) return;
@@ -1469,6 +1678,7 @@
   document.getElementById('cancelEdit').addEventListener('click', () => editDialog.close());
   document.getElementById('closeChoose').addEventListener('click', () => chooseDialog.close());
   document.getElementById('deleteLabel').addEventListener('click', () => {
+    if (!leaseOwned) return;
     annotations = annotations.filter(item => item.id !== editingId);
     annotations.forEach(item => { item.parents = item.parents.filter(id => id !== editingId); });
     editingId = null;
@@ -1478,6 +1688,7 @@
   });
   document.getElementById('editForm').addEventListener('submit', event => {
     event.preventDefault();
+    if (!leaseOwned) return;
     const record = annotations.find(item => item.id === editingId);
     if (!record) return;
     const start = Number(document.getElementById('editStart').value);
@@ -1531,8 +1742,40 @@
   });
   cameras.forEach(camera => {
     const picture = overlays[camera].parentElement;
+    const header = picture.previousElementSibling;
+    header.querySelector('[data-zoom="out"]').addEventListener('click', () => setZoom(camera, views[camera].zoom / 1.25));
+    header.querySelector('[data-zoom="in"]').addEventListener('click', () => setZoom(camera, views[camera].zoom * 1.25));
+    picture.addEventListener('wheel', event => {
+      if (!event.deltaY) return;
+      event.preventDefault();
+      setZoom(camera, views[camera].zoom * (event.deltaY < 0 ? 1.25 : 1 / 1.25), event.clientX, event.clientY);
+    }, {passive: false});
+    let pan = null;
+    let panFinished = null;
+    picture.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || !event.shiftKey || views[camera].zoom <= 1
+          || event.target.closest('.calibration-marker, .matrix-vertex, .matrix-delete')) return;
+      pan = {clientX: event.clientX, clientY: event.clientY, x: views[camera].x, y: views[camera].y};
+      picture.setPointerCapture(event.pointerId);
+      picture.classList.add('panning');
+      event.preventDefault();
+    });
+    picture.addEventListener('pointermove', event => {
+      if (!pan || !picture.hasPointerCapture(event.pointerId)) return;
+      views[camera].x = pan.x + event.clientX - pan.clientX;
+      views[camera].y = pan.y + event.clientY - pan.clientY;
+      constrainView(camera);
+      renderView(camera);
+    });
+    picture.addEventListener('pointerup', event => {
+      if (!pan) return;
+      pan = null;
+      panFinished = {at: performance.now(), x: event.clientX, y: event.clientY};
+      picture.classList.remove('panning');
+    });
+    picture.addEventListener('pointercancel', () => { pan = null; picture.classList.remove('panning'); });
     picture.addEventListener('dragover', event => {
-      if (mode === 'calibration' && frames
+      if (leaseOwned && mode === 'calibration' && frames
           && Array.from(event.dataTransfer.types).includes('application/x-exo-calibration')) {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'copy';
@@ -1540,7 +1783,9 @@
     });
     picture.addEventListener('drop', event => dropCalibration(event, camera));
     picture.addEventListener('click', event => {
-      if (mode !== 'calibration' || !frames || !calibrationLoaded || calibrationProblem
+      if (event.shiftKey || panFinished && performance.now() - panFinished.at < 250
+          && Math.hypot(event.clientX - panFinished.x, event.clientY - panFinished.y) < 6) return;
+      if (!leaseOwned || mode !== 'calibration' || !frames || !calibrationLoaded || calibrationProblem
           || !selectedCalibrationLabel || event.target.closest('.calibration-marker')
           || wasCalibrationDragClick(event, camera)) return;
       const coords = calibrationCoords(camera, event.clientX, event.clientY);
@@ -1552,7 +1797,9 @@
       else placeCalibrationPoint(camera, selectedCalibrationLabel, coords);
     });
   });
-  const calibrationResize = new ResizeObserver(renderCalibrationPoints);
+  const calibrationResize = new ResizeObserver(() => {
+    cameras.forEach(camera => { constrainView(camera); renderView(camera); });
+  });
   cameras.forEach(camera => calibrationResize.observe(overlays[camera].parentElement));
   cameras.forEach(camera => {
     const video = videos[camera];
@@ -1582,6 +1829,8 @@
     document.querySelectorAll('.camera').forEach(camera => {
       camera.style.removeProperty('width');
       camera.style.removeProperty('height');
+      Object.assign(views[camera.dataset.camera], {zoom: 1, x: 0, y: 0});
+      renderView(camera.dataset.camera);
     });
   });
   document.addEventListener('keydown', event => {

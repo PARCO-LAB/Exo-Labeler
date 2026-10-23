@@ -465,25 +465,30 @@
       "side_meaning": "arm passing over the shoulder",
       "high": {
         "label": "rom_shoulder",
+        "definition": "Shoulder range-of-motion tasks performed without external load (posterior reaching, infinity tracing).",
         "mid": {
           "label": "posterior_reach",
+          "definition": "One attempt to bring the hands together behind the back, one arm over the shoulder and one from below, and back to the start position.",
           "type": "cycle",
           "reps": 1,
           "reps_per": "side",
           "low": [
             {
               "label": "reach_behind",
+              "definition": "Moving the arms from the start position to the position behind the back.",
               "external_load": "none",
               "contact_points": "none"
             },
             {
               "label": "hold_behind",
+              "definition": "Maintaining the end position behind the back.",
               "note": "none if hands do not touch",
               "external_load": "none",
               "contact_points": "both"
             },
             {
               "label": "return_from_behind",
+              "definition": "Bringing the arms back from behind the back to the start position.",
               "external_load": "none",
               "contact_points": "none"
             }
@@ -505,8 +510,10 @@
       "side_meaning": "moving arm",
       "high": {
         "label": "rom_shoulder",
+        "definition": "Shoulder range-of-motion tasks performed without external load (posterior reaching, infinity tracing).",
         "mid": {
           "label": "figure_eight",
+          "definition": "One complete figure-eight traced in the air with the extended arm.",
           "type": "cycle",
           "reps": 5,
           "reps_per": "side",
@@ -529,20 +536,24 @@
       "side_meaning": "bending side",
       "high": {
         "label": "rom_trunk",
+        "definition": "Trunk range-of-motion tasks performed without external load (lateral bending, axial rotation).",
         "mid": {
           "label": "lateral_bend",
+          "definition": "One lateral trunk bend sliding the hand down the thigh and return to upright.",
           "type": "cycle",
           "reps": 5,
           "reps_per": "side",
           "low": [
             {
               "label": "bend_down",
+              "definition": "Lateral trunk flexion, from upright to maximum bend.",
               "note": "hand on thigh",
               "external_load": "none",
               "contact_points": "side"
             },
             {
               "label": "bend_up",
+              "definition": "Return from maximum lateral bend to upright.",
               "note": "hand on thigh",
               "external_load": "none",
               "contact_points": "side"
@@ -564,19 +575,23 @@
       ],
       "high": {
         "label": "rom_trunk",
+        "definition": "Trunk range-of-motion tasks performed without external load (lateral bending, axial rotation).",
         "mid": {
           "label": "trunk_twist",
+          "definition": "One trunk rotation to one side with arms raised and return to the start position.",
           "type": "cycle",
           "reps": 1,
           "reps_per": "direction",
           "low": [
             {
               "label": "twist_out",
+              "definition": "Trunk rotation from the neutral position to maximum rotation.",
               "external_load": "none",
               "contact_points": "none"
             },
             {
               "label": "twist_return",
+              "definition": "Return from maximum rotation to the neutral position.",
               "external_load": "none",
               "contact_points": "none"
             }
@@ -593,24 +608,29 @@
       },
       "high": {
         "label": "sit_to_stand",
+        "definition": "Repeated transitions between standing and sitting on a stool, with or without hand support on the thighs.",
         "mid": {
           "label": "sit_stand_cycle",
+          "definition": "One complete cycle from standing to sitting on the stool and back to standing.",
           "type": "cycle",
           "reps": null,
           "reps_note": "3-5 per protocol",
           "low": [
             {
               "label": "sit_down",
+              "definition": "Descent from standing until stable sitting on the stool.",
               "external_load": "none",
               "contact_points": "none"
             },
             {
               "label": "seated",
+              "definition": "Pause while sitting on the stool.",
               "external_load": "none",
               "contact_points": "none"
             },
             {
               "label": "stand_up",
+              "definition": "Rising from the stool until upright standing.",
               "external_load": "none",
               "contact_points": "none"
             }
@@ -627,26 +647,31 @@
       },
       "high": {
         "label": "sit_to_stand",
+        "definition": "Repeated transitions between standing and sitting on a stool, with or without hand support on the thighs.",
         "mid": {
           "label": "sit_stand_cycle",
+          "definition": "One complete cycle from standing to sitting on the stool and back to standing.",
           "type": "cycle",
           "reps": null,
           "reps_note": "3-5 per protocol",
           "low": [
             {
               "label": "sit_down",
+              "definition": "Descent from standing until stable sitting on the stool.",
               "note": "hands on thighs",
               "external_load": "none",
               "contact_points": "both"
             },
             {
               "label": "seated",
+              "definition": "Pause while sitting on the stool.",
               "note": "hands on thighs",
               "external_load": "none",
               "contact_points": "both"
             },
             {
               "label": "stand_up",
+              "definition": "Rising from the stool until upright standing.",
               "note": "hands on thighs",
               "external_load": "none",
               "contact_points": "both"
@@ -669,22 +694,27 @@
       ],
       "high": {
         "label": "pouring",
+        "definition": "Picking up a bottle, simulating pouring into a set of glasses arranged on a table, and putting the bottle back.",
         "mid": {
           "label": "pouring_round",
+          "definition": "One full pass: picking up the bottle, pouring into all glasses and putting the bottle back.",
           "type": "round",
           "reps": 3,
           "low": [
             {
               "label": "bottle_pickup",
+              "definition": "Reaching for the bottle on the table and grasping it.",
               "location": "table",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -692,16 +722,19 @@
             },
             {
               "label": "pour_glass",
+              "definition": "Moving the bottle to one glass and pouring into it.",
               "repeat": 9,
               "location_group": "glass",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "tilt",
+                  "definition": "Tilting the bottle over the glass and back.",
                   "external_load": "side",
                   "contact_points": "side"
                 }
@@ -709,20 +742,24 @@
             },
             {
               "label": "bottle_putdown",
+              "definition": "Bringing the bottle back, placing it on the table and releasing it.",
               "location": "table",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -746,22 +783,27 @@
       ],
       "high": {
         "label": "pouring",
+        "definition": "Picking up a bottle, simulating pouring into a set of glasses arranged on a table, and putting the bottle back.",
         "mid": {
           "label": "pouring_round",
+          "definition": "One full pass: picking up the bottle, pouring into all glasses and putting the bottle back.",
           "type": "round",
           "reps": 3,
           "low": [
             {
               "label": "bottle_pickup",
+              "definition": "Reaching for the bottle on the table and grasping it.",
               "location": "table",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -769,16 +811,19 @@
             },
             {
               "label": "pour_glass",
+              "definition": "Moving the bottle to one glass and pouring into it.",
               "repeat": 9,
               "location_group": "glass",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "tilt",
+                  "definition": "Tilting the bottle over the glass and back.",
                   "external_load": "side",
                   "contact_points": "side"
                 }
@@ -786,20 +831,24 @@
             },
             {
               "label": "bottle_putdown",
+              "definition": "Bringing the bottle back, placing it on the table and releasing it.",
               "location": "table",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -823,22 +872,27 @@
       ],
       "high": {
         "label": "drilling",
+        "definition": "Picking up a cordless drill, simulating drilling on predefined targets on a horizontal surface or a vertical rack, and putting the drill back.",
         "mid": {
           "label": "drilling_round",
+          "definition": "One full pass: picking up the tool, drilling all targets and putting the tool back.",
           "type": "round",
           "reps": 3,
           "low": [
             {
               "label": "tool_pickup",
+              "definition": "Reaching for the tool and grasping it.",
               "location": "table",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -846,21 +900,25 @@
             },
             {
               "label": "drill_target",
+              "definition": "Moving the tool to one target, aligning it and drilling.",
               "repeat": 13,
               "location_group": "horizontal_drilling_target",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "pointing",
+                  "definition": "Fine alignment of the tool on the drilling location, before contact.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "press",
+                  "definition": "Pushing the tool against the drilling location.",
                   "external_load": "side",
                   "contact_points": "side"
                 }
@@ -868,20 +926,24 @@
             },
             {
               "label": "tool_putdown",
+              "definition": "Bringing the tool back, placing it and releasing it.",
               "location": "table",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -908,38 +970,46 @@
       "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "definition": "Moving an object from the floor to a shelf and back to the floor, with one or two hands.",
         "mid": {
           "label": "lifting_cycle",
+          "definition": "One complete cycle: object moved from the floor to a shelf and back to the floor.",
           "type": "cycle",
           "reps": 3,
           "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
           "low": [
             {
               "label": "lift_to_shelf",
+              "definition": "Picking up the object from the floor and placing it on a shelf.",
               "location_group": "shelf",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -947,30 +1017,36 @@
             },
             {
               "label": "lower_to_floor",
+              "definition": "Picking up the object from the shelf and placing it on the floor.",
               "location": "floor",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -997,38 +1073,46 @@
       "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "definition": "Moving an object from the floor to a shelf and back to the floor, with one or two hands.",
         "mid": {
           "label": "lifting_cycle",
+          "definition": "One complete cycle: object moved from the floor to a shelf and back to the floor.",
           "type": "cycle",
           "reps": 3,
           "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
           "low": [
             {
               "label": "lift_to_shelf",
+              "definition": "Picking up the object from the floor and placing it on a shelf.",
               "location_group": "shelf",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1036,30 +1120,36 @@
             },
             {
               "label": "lower_to_floor",
+              "definition": "Picking up the object from the shelf and placing it on the floor.",
               "location": "floor",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1086,38 +1176,46 @@
       "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "definition": "Moving an object from the floor to a shelf and back to the floor, with one or two hands.",
         "mid": {
           "label": "lifting_cycle",
+          "definition": "One complete cycle: object moved from the floor to a shelf and back to the floor.",
           "type": "cycle",
           "reps": 3,
           "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
           "low": [
             {
               "label": "lift_to_shelf",
+              "definition": "Picking up the object from the floor and placing it on a shelf.",
               "location_group": "shelf",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1125,30 +1223,36 @@
             },
             {
               "label": "lower_to_floor",
+              "definition": "Picking up the object from the shelf and placing it on the floor.",
               "location": "floor",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1175,38 +1279,46 @@
       "side_meaning": "hand(s) used to grasp the object",
       "high": {
         "label": "lifting",
+        "definition": "Moving an object from the floor to a shelf and back to the floor, with one or two hands.",
         "mid": {
           "label": "lifting_cycle",
+          "definition": "One complete cycle: object moved from the floor to a shelf and back to the floor.",
           "type": "cycle",
           "reps": 3,
           "reps_note": "3 per protocol; if a cycle is done for each shelf, reps = 3 x number of shelves",
           "low": [
             {
               "label": "lift_to_shelf",
+              "definition": "Picking up the object from the floor and placing it on a shelf.",
               "location_group": "shelf",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1214,30 +1326,36 @@
             },
             {
               "label": "lower_to_floor",
+              "definition": "Picking up the object from the shelf and placing it on the floor.",
               "location": "floor",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1261,21 +1379,26 @@
       ],
       "high": {
         "label": "drilling",
+        "definition": "Picking up a cordless drill, simulating drilling on predefined targets on a horizontal surface or a vertical rack, and putting the drill back.",
         "mid": {
           "label": "drilling_round",
+          "definition": "One full pass: picking up the tool, drilling all targets and putting the tool back.",
           "type": "round",
           "reps": 5,
           "low": [
             {
               "label": "tool_pickup",
+              "definition": "Reaching for the tool and grasping it.",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1283,22 +1406,26 @@
             },
             {
               "label": "drill_target",
+              "definition": "Moving the tool to one target, aligning it and drilling.",
               "repeat": null,
               "location_group": "vertical_drilling_target",
               "repeat_note": "number of predefined targets on the rack",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "pointing",
+                  "definition": "Fine alignment of the tool on the drilling location, before contact.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "press",
+                  "definition": "Pushing the tool against the drilling location.",
                   "external_load": "side",
                   "contact_points": "side"
                 }
@@ -1306,19 +1433,23 @@
             },
             {
               "label": "tool_putdown",
+              "definition": "Bringing the tool back, placing it and releasing it.",
               "atomic": [
                 {
                   "label": "transport",
+                  "definition": "Moving the held object.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "place",
+                  "definition": "Object is set down.",
                   "external_load": "side",
                   "contact_points": "side"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 }
@@ -1341,38 +1472,46 @@
       ],
       "high": {
         "label": "door",
+        "definition": "Opening (pull) and closing (push) a cabinet door using its handle.",
         "mid": {
           "label": "door_cycle",
+          "definition": "One complete cycle: opening the door and closing it.",
           "type": "cycle",
           "reps": 5,
           "reps_note": "5 pull + 5 push in the protocol = 5 open/close cycles",
           "low": [
             {
               "label": "door_opening",
+              "definition": "Grasping the handle and pulling the door open.",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "pull",
+                  "definition": "Pulling force on the door.",
                   "external_load": "none",
                   "contact_points": "side",
                   "note": "resistance only, not external load"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "return",
+                  "definition": "Return to start position without object.",
                   "external_load": "none",
                   "contact_points": "none"
                 }
@@ -1380,30 +1519,36 @@
             },
             {
               "label": "door_closing",
+              "definition": "Grasping the handle and pushing the door closed.",
               "atomic": [
                 {
                   "label": "reach",
+                  "definition": "Hand moves toward an object or target, without load.",
                   "external_load": "none",
                   "contact_points": "none"
                 },
                 {
                   "label": "grasp",
+                  "definition": "From first contact to stable grip.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "push",
+                  "definition": "Pushing force on the door.",
                   "external_load": "none",
                   "contact_points": "side",
                   "note": "resistance only, not external load"
                 },
                 {
                   "label": "release",
+                  "definition": "Hand opens and detaches from the object.",
                   "external_load": "none",
                   "contact_points": "side"
                 },
                 {
                   "label": "return",
+                  "definition": "Return to start position without object.",
                   "external_load": "none",
                   "contact_points": "none"
                 }
@@ -1428,23 +1573,28 @@
       "expected_side": "both",
       "high": {
         "label": "throwing_catching",
+        "definition": "Chest pass of a medicine ball to an assistant and catching it when thrown back.",
         "mid": {
           "label": "pass_cycle",
+          "definition": "One complete exchange: throwing the ball to the assistant and catching it when thrown back.",
           "type": "cycle",
           "reps": null,
           "reps_note": "3-5 per protocol",
           "low": [
             {
               "label": "ball_throw",
+              "definition": "Bringing the ball to the chest and throwing it to the assistant.",
               "atomic": [
                 {
                   "label": "move",
+                  "definition": "Free movement without a more specific label; specified by 'phase' (e.g. wind_up).",
                   "external_load": "side",
                   "contact_points": "side",
                   "phase": "wind_up"
                 },
                 {
                   "label": "throw",
+                  "definition": "Propulsive phase until ball release.",
                   "external_load": "side",
                   "contact_points": "side"
                 }
@@ -1452,15 +1602,18 @@
             },
             {
               "label": "ball_catch",
+              "definition": "Waiting for the ball and catching it.",
               "atomic": [
                 {
                   "label": "hold",
+                  "definition": "Maintaining a position; specified by 'phase' (e.g. waiting).",
                   "external_load": "none",
                   "contact_points": "none",
                   "phase": "waiting"
                 },
                 {
                   "label": "catch",
+                  "definition": "From first ball contact to end of deceleration.",
                   "external_load": "side",
                   "contact_points": "side"
                 }
@@ -1484,8 +1637,10 @@
       "side_meaning": "active arm (both hands hold a dumbbell)",
       "high": {
         "label": "curl",
+        "definition": "Alternating elbow flexion-extension holding a dumbbell in each hand.",
         "mid": {
           "label": "curl_cycle",
+          "definition": "One elbow flexion-extension of the active arm.",
           "type": "cycle",
           "reps": null,
           "reps_per": "side",
@@ -1493,11 +1648,13 @@
           "low": [
             {
               "label": "flexion",
+              "definition": "Elbow flexion lifting the dumbbell (concentric phase).",
               "external_load": "both",
               "contact_points": "both"
             },
             {
               "label": "extension",
+              "definition": "Elbow extension lowering the dumbbell (eccentric phase).",
               "external_load": "both",
               "contact_points": "both"
             }

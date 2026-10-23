@@ -39,7 +39,10 @@ dal titolo; i comandi delle camere restano visibili. La riga di navigazione è
 compatta. Righello e tracce delle label condividono lo sfondo grigio chiaro,
 con le linee dei frame estese lungo tutte le tracce. Ogni finestra si
 ridimensiona trascinando l'angolo in basso a destra; **↺ Dimensioni** ripristina
-le dimensioni iniziali di tutte le inquadrature. Quando non entrano tutte nella pagina, si scorre
+le dimensioni iniziali e lo zoom al 100% di tutte le inquadrature. I pulsanti **+** e **−**
+o la rotella ingrandiscono e riducono ogni camera separatamente; **Maiusc+trascina**
+sposta l'immagine ingrandita. Punti e poligoni di calibrazione restano allineati
+all'immagine e nel JSON mantengono le coordinate originali. Quando non entrano tutte nella pagina, si scorre
 orizzontalmente. Durante la riproduzione il browser
 prepara un frame per ciascuna camera prima di mostrare il video, poi mantiene
 i canali vicini al tempo della camera body regolando leggermente la velocità,
@@ -89,8 +92,7 @@ sovrascritto.
 
 Aprire **Label** e cliccare una voce per iniziare l'annotazione al frame
 visualizzato. Passando il mouse o usando la tastiera su una voce compare la
-definizione presente in `label_schema.json`; per le label mid e low, prive di
-definizione nello schema 0.4, compare un avviso. Le annotazioni sono comuni alle tre camere. Per ogni label,
+definizione presente in `label_schema.json`. Le annotazioni sono comuni alle tre camere. Per ogni label,
 raggiungere il frame finale e premere **End**. Le azioni con fasi diverse (per esempio `move · wind_up` e
 `hold · waiting`) sono scelte distinte. La timeline ha righello in frame e
 testina verticale; sotto il righello, ogni livello e nome di label ha una
@@ -139,6 +141,20 @@ modificato da un'altra sessione, il salvataggio viene respinto per evitare di
 sovrascriverlo; ricaricare la sequenza dopo aver conservato le proprie
 modifiche. Un avviso compare se si cambia sequenza o si chiude la pagina con
 modifiche non salvate. Non è possibile salvare un intervallo ancora aperto.
+
+Una sola scheda per volta può modificare una sequenza, sia nel labeler sia in
+camera calibration. Le altre schede possono vedere i video e le annotazioni in
+sola lettura. Il pulsante **Riprova** richiede il controllo quando si libera e
+ricarica i JSON aggiornati prima di abilitare le modifiche. Il controllo viene
+rinnovato ogni 20 secondi, rilasciato quando si cambia sequenza o si chiude la
+pagina e scade dopo 90 secondi senza rinnovo. Anche il server rifiuta i
+salvataggi senza controllo valido. Il controllo identifica la scheda del
+browser, non l'identità personale dell'utente; le modifiche locali non salvate
+restano visibili se si perde il controllo, ma non vengono unite automaticamente
+con quelle di un'altra scheda.
+I controlli sono tenuti in memoria da un singolo processo Python: dopo un
+riavvio le schede vanno ricaricate; due istanze separate sulla stessa cartella
+non condividono i controlli.
 
 Il JSON contiene `schema_version`, `subject`, `sequence`, `fps`, `workflow_stage` e
 `annotations`. Ogni annotazione conserva i campi del template dello schema,

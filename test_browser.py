@@ -28,6 +28,10 @@ def main():
         (label_dir / f"{name}.json").write_text(json.dumps({
             "schema_version": LABEL_SCHEMA["schema_version"], "subject": "s5", "sequence": name,
             "fps": 30, "workflow_stage": "free", "annotations": []}))
+    lease_url = ViewerTest.base + "/api/lease?subject=s5&sequence=curl_0"
+    with urlopen(Request(lease_url, data=json.dumps({"token": None}).encode(),
+                         headers={"Content-Type": "application/json"})) as response:
+        held_token = json.load(response)["token"]
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -69,6 +73,41 @@ def main():
                 break
             time.sleep(0.1)
         assert state["ready"] and not state["busy"], state
+        observer = webdriver(endpoint + "/execute/sync", {"script":
+            "return {ready:!document.getElementById('slider').disabled,"
+            "banner:!document.getElementById('leaseBar').hidden,"
+            "text:document.getElementById('leaseText').textContent,"
+            "labelDisabled:document.querySelector('.label-chip')?.disabled,"
+            "playEnabled:!document.getElementById('play').disabled}", "args": []})
+        assert observer["ready"] and observer["banner"] and observer["labelDisabled"] and observer["playEnabled"], observer
+        assert 'in uso' in observer["text"], observer
+        calibration_readonly = webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('modeSwitch').click();"
+            "return [...document.querySelectorAll('.calibration-chip')].every(x=>x.disabled)", "args": []})
+        assert calibration_readonly
+        labels_url = ViewerTest.base + "/api/labels?subject=s5&sequence=curl_0"
+        with urlopen(labels_url) as response:
+            before = json.load(response)
+        with urlopen(Request(labels_url, data=json.dumps({"revision": before["revision"],
+                                                         "data": before["data"]}).encode(),
+                             headers={"Content-Type": "application/json",
+                                      "X-Sequence-Lease": held_token})) as response:
+            assert json.load(response)["revision"] != before["revision"]
+        with urlopen(Request(ViewerTest.base + "/api/lease/release?subject=s5&sequence=curl_0",
+                             data=json.dumps({"token": held_token}).encode(),
+                             headers={"Content-Type": "application/json"})) as response:
+            assert json.load(response)["released"]
+        webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('modeSwitch').click();"
+            "document.getElementById('leaseRetry').click();", "args": []})
+        for _ in range(100):
+            owner = webdriver(endpoint + "/execute/sync", {"script":
+                "return {banner:!document.getElementById('leaseBar').hidden,"
+                "labelEnabled:!document.querySelector('.label-chip')?.disabled}", "args": []})
+            if not owner["banner"] and owner["labelEnabled"]:
+                break
+            time.sleep(.1)
+        assert not owner["banner"] and owner["labelEnabled"], owner
         chrome = webdriver(endpoint + "/execute/sync", {"script":
             "let panel=document.getElementById('selectionPanel'),"
             "ruler=document.querySelector('.ruler-surface'),"
@@ -111,6 +150,64 @@ def main():
                 break
             time.sleep(.1)
         assert calibration_ready
+        zoom_state = webdriver(endpoint + "/execute/sync", {"script":
+            "let before=imageRect('body');"
+            "document.querySelector('.camera[data-camera=body] [data-zoom=in]').click();"
+            "document.querySelector('.camera[data-camera=body] [data-zoom=in]').click();"
+            "document.querySelector('.camera[data-camera=external] [data-zoom=in]').click();"
+            "let rect=imageRect('body'),picture=document.querySelector('.camera[data-camera=body] .picture');"
+            "let x=rect.left+rect.width*.45,y=rect.top+rect.height*.45;"
+            "let coords=calibrationCoords('body',x,y);"
+            "[...document.querySelectorAll('.calibration-chip')].find(c=>c.textContent==='Rhigh').click();"
+            "picture.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:x,clientY:y}));"
+            "return {body:document.querySelector('.camera[data-camera=body] .zoom-value').textContent,"
+            "external:document.querySelector('.camera[data-camera=external] .zoom-value').textContent,"
+            "aria:document.querySelector('.camera[data-camera=aria] .zoom-value').textContent,"
+            "ratio:rect.width/before.width,coords,center:{x:Math.round(picture.getBoundingClientRect().left+"
+            "picture.getBoundingClientRect().width/2),y:Math.round(picture.getBoundingClientRect().top+"
+            "picture.getBoundingClientRect().height/2)}}", "args": []})
+        assert zoom_state["body"] == "156%" and zoom_state["external"] == "125%" and zoom_state["aria"] == "100%", zoom_state
+        assert abs(zoom_state["ratio"] - 1.5625) < .001 and zoom_state["coords"] == {"x": 35, "y": 26}, zoom_state
+        for _ in range(50):
+            zoom_marker = webdriver(endpoint + "/execute/sync", {"script":
+                "let m=document.querySelector('.calibration-overlay[data-camera=body] .calibration-marker');"
+                "return m ? {x:parseFloat(m.style.left),title:m.title} : null", "args": []})
+            if zoom_marker:
+                break
+            time.sleep(.1)
+        assert zoom_marker and "(35, 26)" in zoom_marker["title"], zoom_marker
+        x, y = zoom_state["center"].values()
+        webdriver(endpoint + "/actions", {"actions": [
+            {"type": "key", "id": "keyboard", "actions": [
+                {"type": "keyDown", "value": "\ue008"}, {"type": "pause", "duration": 0},
+                {"type": "pause", "duration": 250}, {"type": "pause", "duration": 0},
+                {"type": "keyUp", "value": "\ue008"}]},
+            {"type": "pointer", "id": "mouse", "parameters": {"pointerType": "mouse"}, "actions": [
+                {"type": "pointerMove", "duration": 0, "x": x, "y": y},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pointerMove", "duration": 250, "x": x + 30, "y": y},
+                {"type": "pointerUp", "button": 0}, {"type": "pause", "duration": 0}]}]})
+        panned = webdriver(endpoint + "/execute/sync", {"script":
+            "let p=document.querySelector('.camera[data-camera=body] .picture');"
+            "let m=document.querySelector('.calibration-overlay[data-camera=body] .calibration-marker');"
+            "return {pan:parseFloat(p.style.getPropertyValue('--pan-x')),marker:parseFloat(m.style.left),"
+            "count:document.querySelectorAll('.calibration-overlay[data-camera=body] .calibration-marker').length}", "args": []})
+        assert panned["pan"] > 20 and abs(panned["marker"] - zoom_marker["x"] - panned["pan"]) < 2, panned
+        assert panned["count"] == 1, panned
+        wheel_zoom = webdriver(endpoint + "/execute/sync", {"script":
+            "let p=document.querySelector('.camera[data-camera=body] .picture'),r=p.getBoundingClientRect();"
+            "let wheel=new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:-100,"
+            "clientX:r.left+r.width/2,clientY:r.top+r.height/2});p.dispatchEvent(wheel);"
+            "let after=p.parentElement.querySelector('.zoom-value').textContent;"
+            "p.parentElement.querySelector('[data-zoom=out]').click();"
+            "return {prevented:wheel.defaultPrevented,after,back:p.parentElement.querySelector('.zoom-value').textContent}",
+            "args": []})
+        assert wheel_zoom == {"prevented": True, "after": "195%", "back": "156%"}, wheel_zoom
+        reset_zoom = webdriver(endpoint + "/execute/sync", {"script":
+            "document.getElementById('resetViews').click();"
+            "return [...document.querySelectorAll('.camera')].map(c=>({zoom:c.querySelector('.zoom-value').textContent,"
+            "pan:c.querySelector('.picture').style.getPropertyValue('--pan-x')}))", "args": []})
+        assert reset_zoom == [{"zoom": "100%", "pan": "0px"}] * 3, reset_zoom
 
         def drop_point(camera, label, u, v):
             return webdriver(endpoint + "/execute/sync", {"script":
@@ -350,7 +447,8 @@ def main():
                 "&&x.parentElement.querySelector('strong').textContent===arguments[0]);"
                 "if(!chip)return null;let r=chip.getBoundingClientRect();"
                 "return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}", "args": [level, label]})
-        for level, label, expected in [("Low", "flexion", "Definizione non presente nello schema"),
+        for level, label, expected in [("Low", "flexion", "Elbow flexion lifting the dumbbell"),
+                                       ("Mid", "curl_cycle", "One elbow flexion-extension"),
                                        ("High", "curl", "Alternating elbow flexion-extension")]:
             center = label_center(level, label)
             assert center, (level, label)

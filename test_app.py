@@ -3,10 +3,13 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 
 from app import LABEL_SCHEMA, ViewerHandler, discover, label_choices, proxy, validate_labels
@@ -49,6 +52,7 @@ class ViewerTest(unittest.TestCase):
         cls.server.root = cls.root
         cls.server.recordings = discover(cls.root)
         cls.server.label_lock = threading.Lock()
+        cls.server.leases = {}
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.base = f"http://127.0.0.1:{cls.server.server_port}"
@@ -60,10 +64,77 @@ class ViewerTest(unittest.TestCase):
         cls.thread.join()
         cls.temp.cleanup()
 
-    def request(self, path, headers=None, method="GET", data=None):
+    def setUp(self):
+        self.server.leases.clear()
+        self.lease_tokens = {}
+
+    def request(self, path, headers=None, method="GET", data=None, lease=True):
+        headers = headers or {}
+        if lease and method == "POST" and urlsplit(path).path in ("/api/labels", "/api/calibration"):
+            query = parse_qs(urlsplit(path).query)
+            key = (query["subject"][0], query["sequence"][0])
+            if key not in self.lease_tokens:
+                with self.request(f"/api/lease?subject={key[0]}&sequence={key[1]}",
+                                  method="POST", data={"token": None}) as response:
+                    self.lease_tokens[key] = json.load(response)["token"]
+            headers = {"X-Sequence-Lease": self.lease_tokens[key], **headers}
         payload = json.dumps(data).encode() if data is not None else None
         return urlopen(Request(self.base + path, data=payload,
-                               headers={"Content-Type": "application/json", **(headers or {})}, method=method))
+                               headers={"Content-Type": "application/json", **headers}, method=method))
+
+    def test_sequence_lease(self):
+        lease_url = "/api/lease?subject=s5&sequence=curl_0"
+        labels_url = "/api/labels?subject=s5&sequence=curl_0"
+        calibration_url = "/api/calibration?subject=s5&sequence=curl_0"
+        def compete():
+            try:
+                with self.request(lease_url, method="POST", data={"token": None}) as response:
+                    return response.status, json.load(response)["token"]
+            except HTTPError as error:
+                return error.code, None
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: compete(), range(2)))
+        self.assertEqual(sorted(status for status, _ in results), [200, 423])
+        first = next(token for status, token in results if status == 200)
+        with self.request("/api/lease?subject=s5&sequence=throwing_0", method="POST",
+                          data={"token": None}) as response:
+            self.assertEqual(response.status, 200)
+        with self.request(lease_url, method="POST", data={"token": first}) as response:
+            self.assertEqual(json.load(response)["token"], first)
+        with self.request("/api/lease/release?subject=s5&sequence=curl_0",
+                          method="POST", data={"token": "wrong"}) as response:
+            self.assertFalse(json.load(response)["released"])
+        for url in (labels_url, calibration_url):
+            with self.request(url) as response:
+                current = json.load(response)
+            for token in (None, "wrong"):
+                headers = {"X-Sequence-Lease": token} if token else {}
+                with self.assertRaises(HTTPError) as error:
+                    self.request(url, headers=headers, method="POST", lease=False,
+                                 data={"revision": current["revision"], "data": current["data"]})
+                self.assertEqual(error.exception.code, 423)
+            with self.request(url, headers={"X-Sequence-Lease": first}, method="POST", lease=False,
+                              data={"revision": current["revision"], "data": current["data"]}) as response:
+                self.assertTrue(json.load(response)["revision"])
+        with self.request("/api/lease/release?subject=s5&sequence=curl_0", method="POST",
+                          data={"token": first}) as response:
+            self.assertTrue(json.load(response)["released"])
+        with self.request(lease_url, method="POST", data={"token": None}) as response:
+            second = json.load(response)["token"]
+        self.assertNotEqual(first, second)
+        with self.request(labels_url) as response:
+            current = json.load(response)
+        with self.assertRaises(HTTPError) as error:
+            self.request(labels_url, headers={"X-Sequence-Lease": first}, method="POST", lease=False,
+                         data={"revision": current["revision"], "data": current["data"]})
+        self.assertEqual(error.exception.code, 423)
+        self.server.leases[("s5", "curl_0")]["expires"] = time.monotonic() - 1
+        with self.assertRaises(HTTPError) as error:
+            self.request(labels_url, headers={"X-Sequence-Lease": second}, method="POST", lease=False,
+                         data={"revision": current["revision"], "data": current["data"]})
+        self.assertEqual(error.exception.code, 423)
+        with self.request(lease_url, method="POST", data={"token": None}) as response:
+            self.assertNotEqual(json.load(response)["token"], second)
 
     def test_discovery_and_metadata(self):
         with self.request("/api/catalog") as response:
@@ -372,8 +443,18 @@ class ViewerTest(unittest.TestCase):
                     expected.add(("low", low["label"]))
                     expected.update(("atomic", item["label"]) for item in low.get("atomic", []))
                 self.assertEqual({(item["level"], item["label"]) for item in choices if item["level"] != "aux"}, expected)
-                self.assertTrue(all(item["definition"] for item in choices
-                                    if item["level"] in ("high", "atomic", "aux")))
+                self.assertTrue(all(item["definition"] for item in choices))
+                definitions = {(level, node["label"], node.get("phase")): node["definition"]
+                               for level, nodes in (("high", [task["high"]]),
+                                                    ("mid", [task["high"]["mid"]]),
+                                                    ("low", task["high"]["mid"].get("low", [])),
+                                                    ("atomic", [atomic for low in task["high"]["mid"].get("low", [])
+                                                                for atomic in low.get("atomic", [])]))
+                               for node in nodes}
+                for choice in choices:
+                    if choice["level"] != "aux":
+                        self.assertEqual(choice["definition"], definitions[
+                            choice["level"], choice["label"], choice["phase"]])
         files = self.server.recordings["s5"]["curl_0"]
         no_low = {"schema_version": LABEL_SCHEMA["schema_version"], "subject": "s5",
                   "sequence": "infinity_tracing_0", "fps": 30, "annotations": [{

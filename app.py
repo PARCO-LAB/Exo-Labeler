@@ -6,8 +6,10 @@ import json
 import math
 import os
 import re
+import secrets
 import subprocess
 import tempfile
+import time
 from functools import lru_cache
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,6 +24,7 @@ SUBJECT = re.compile(r"s\d+")
 LABEL_SCHEMA = json.loads(Path(__file__).with_name("label_schema.json").read_text())
 TASKS = {task["trial_id"]: task for task in LABEL_SCHEMA["tasks"]}
 MAX_LABEL_BYTES = 4 * 1024 * 1024
+LEASE_SECONDS = 90
 LOCATION_GROUPS = {entry["group"]: entry for entry in LABEL_SCHEMA["attribute_values"]["location"]["values"]}
 TARGET_VALUES = {entry["value"] for entry in LABEL_SCHEMA["attribute_values"]["target"]["values"]}
 
@@ -56,16 +59,14 @@ def label_choices(sequence):
             choices.append(choice)
             seen.add((level, label, phase))
 
-    definitions = {entry["label"]: entry["definition"]
-                   for level in ("high_level_labels", "atomic_labels") for entry in LABEL_SCHEMA[level]}
     high = task["high"]
-    add("high", high["label"], definitions.get(high["label"], ""))
+    add("high", high["label"], high["definition"])
     mid = high["mid"]
-    add("mid", mid["label"])
+    add("mid", mid["label"], mid["definition"])
     for low in mid.get("low", []):
-        add("low", low["label"], low=low)
+        add("low", low["label"], low["definition"], low=low)
         for atomic in low.get("atomic", []):
-            add("atomic", atomic["label"], definitions.get(atomic["label"], ""), atomic.get("phase"))
+            add("atomic", atomic["label"], atomic["definition"], atomic.get("phase"))
     for auxiliary in LABEL_SCHEMA["auxiliary_labels"]:
         add("aux", auxiliary["label"], auxiliary["definition"])
     return task, choices
@@ -102,6 +103,14 @@ def calibration_path(server, subject, sequence):
 
 def label_revision(data):
     return hashlib.sha256(data).hexdigest() if data is not None else None
+
+
+def active_lease(server, key, now):
+    lease = server.leases.get(key)
+    if lease and lease["expires"] <= now:
+        del server.leases[key]
+        return None
+    return lease
 
 
 def validate_calibration(document, subject, sequence, files):
@@ -368,7 +377,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlsplit(self.path)
-        if parsed.path not in ("/api/labels", "/api/calibration"):
+        if parsed.path not in ("/api/labels", "/api/calibration", "/api/lease", "/api/lease/release"):
             self.send_json({"error": "Percorso non trovato"}, HTTPStatus.NOT_FOUND)
             return
         query = parse_qs(parsed.query)
@@ -382,9 +391,30 @@ class ViewerHandler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", ""))
-            if not 0 < size <= MAX_LABEL_BYTES:
+            if not 0 < size <= (1024 if parsed.path.startswith("/api/lease") else MAX_LABEL_BYTES):
                 raise ValueError("Dimensione del JSON non valida")
             request = json.loads(self.rfile.read(size))
+            if parsed.path.startswith("/api/lease"):
+                if (not isinstance(request, dict) or set(request) != {"token"}
+                        or request["token"] is not None and
+                        (not isinstance(request["token"], str) or len(request["token"]) > 128)):
+                    raise ValueError("Richiesta di controllo non valida")
+                key = (subject, sequence)
+                with self.server.label_lock:
+                    now = time.monotonic()
+                    lease = active_lease(self.server, key, now)
+                    if parsed.path == "/api/lease/release":
+                        released = bool(lease and request["token"] and lease["token"] == request["token"])
+                        if released:
+                            del self.server.leases[key]
+                        self.send_json({"released": released})
+                    elif lease and lease["token"] != request["token"]:
+                        self.send_json({"error": "Sequenza in uso da un'altra sessione."}, HTTPStatus.LOCKED)
+                    else:
+                        token = lease["token"] if lease else secrets.token_urlsafe(32)
+                        self.server.leases[key] = {"token": token, "expires": now + LEASE_SECONDS}
+                        self.send_json({"token": token, "expires_in": LEASE_SECONDS})
+                return
             if not isinstance(request, dict) or set(request) != {"revision", "data"}:
                 raise ValueError("Richiesta di salvataggio non valida")
             if request["revision"] is not None and not isinstance(request["revision"], str):
@@ -396,6 +426,12 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     label_path(self.server, subject, sequence))
             payload = (json.dumps(document, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
             with self.server.label_lock:
+                lease = active_lease(self.server, (subject, sequence), time.monotonic())
+                if not lease or lease["token"] != self.headers.get("X-Sequence-Lease"):
+                    self.send_json({"error": "Controllo della sequenza scaduto o assegnato a un'altra sessione."},
+                                   HTTPStatus.LOCKED)
+                    return
+                lease["expires"] = time.monotonic() + LEASE_SECONDS
                 current = path.read_bytes() if path.exists() else None
                 if label_revision(current) != request["revision"]:
                     self.send_json({"error": "Il file è cambiato dopo l'apertura. Ricarica la sequenza prima di salvare."},
@@ -635,6 +671,7 @@ def main():
     server.root = root
     server.recordings = recordings
     server.label_lock = Lock()
+    server.leases = {}
     print(f"EXO viewer: http://{args.host}:{server.server_port} ({sum(map(len, recordings.values()))} sequenze)", flush=True)
     try:
         server.serve_forever()
