@@ -471,6 +471,11 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             return
         if parsed.path == "/api/catalog":
+            try:
+                self.server.recordings = discover(self.server.root)
+            except OSError as exc:
+                self.send_json({"error": f"Catalogo non accessibile: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                return
             self.send_json({subject: sorted(sequences) for subject, sequences in self.server.recordings.items()})
             return
         if parsed.path in ("/api/schema", "/api/labels", "/api/calibration"):
@@ -665,7 +670,6 @@ def main():
     root = args.root.expanduser().resolve()
     if not root.is_dir():
         parser.error(f"Cartella non accessibile: {root}")
-    # shortcut: the catalog is fixed at startup; restart the server when new recordings arrive.
     recordings = discover(root)
     server = ThreadingHTTPServer((args.host, args.port), ViewerHandler)
     server.root = root

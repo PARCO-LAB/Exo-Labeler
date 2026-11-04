@@ -149,6 +149,24 @@ class ViewerTest(unittest.TestCase):
             self.request("/api/sequence?subject=s6&sequence=curl_0")
         self.assertEqual(error.exception.code, 404)
 
+    def test_catalog_refreshes_after_new_recordings(self):
+        subject = self.root / "s7"
+        try:
+            for camera in ("camera_body", "camera_env", "camera_aria"):
+                directory = subject / "aligned" / camera
+                directory.mkdir(parents=True)
+                shutil.copyfile(self.root / "s5/aligned/camera_body/s5_curl_0_rgb.mp4",
+                                directory / "s7_curl_0_rgb.mp4")
+                with self.request("/api/catalog") as response:
+                    catalog = json.load(response)
+                self.assertEqual("s7" in catalog, camera == "camera_aria")
+            self.assertEqual(catalog["s7"], ["curl_0"])
+            with self.request("/api/schema?subject=s7&sequence=curl_0") as response:
+                self.assertEqual(response.status, 200)
+        finally:
+            shutil.rmtree(subject)
+            self.server.recordings = discover(self.root)
+
     def test_camera_calibration_save_and_validation(self):
         url = "/api/calibration?subject=s5&sequence=curl_0"
         with self.request(url) as response:

@@ -29,7 +29,8 @@ ssh -L 8765:127.0.0.1:8765 utente@server
 Poi aprire lo stesso indirizzo nel browser locale. La porta rimane privata
 all'host che esegue il server. `--root` permette di usare un'altra cartella
 con la stessa struttura; `--port` cambia la porta. Riavviare il server se
-vengono aggiunte nuove registrazioni o cambia `label_schema.json`.
+cambia `label_schema.json`. Per vedere nuovi soggetti o nuove sequenze,
+ricaricare la pagina: il server aggiorna il catalogo a ogni richiesta.
 
 La timeline usa i frame a 30 Hz. Alla selezione l'app controlla codec,
 frequenza e numero di frame; se i video hanno lunghezze diverse, segnala la
