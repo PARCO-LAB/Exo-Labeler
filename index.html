@@ -1157,7 +1157,8 @@
     const locationText = document.getElementById('editLocationText');
     locationText.hidden = !pattern;
     locationText.value = record.location ?? '';
-    locationText.pattern = pattern ? pattern.replace('<n>', '[1-9][0-9]*') : '';
+    if (pattern) locationText.pattern = pattern.replace('<n>', '[1-9][0-9]*');
+    else locationText.removeAttribute('pattern');
     locationText.placeholder = pattern ? pattern.replace('<n>', '1') : '';
     const phases = [...new Set(labelSchema.choices.filter(item => item.level === record.level
       && item.label === record.label && item.phase).map(item => item.phase))];

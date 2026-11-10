@@ -950,6 +950,37 @@ def main():
                 break
             time.sleep(0.1)
         assert json.loads(path.read_text())["annotations"][0]["location"] == "g9"
+        go_to(10)
+        assert click_label("Low", "bottle_pickup")
+        for _ in range(50):
+            if webdriver(endpoint + "/execute/sync", {"script":
+                    "return !document.getElementById('endLabel').disabled", "args": []}):
+                break
+            time.sleep(0.1)
+        go_to(12)
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('endLabel').click()", "args": []})
+        for _ in range(50):
+            if webdriver(endpoint + "/execute/sync", {"script":
+                    "return document.getElementById('endLabel').disabled && !document.querySelector('.annotation-bar.pending')",
+                    "args": []}):
+                break
+            time.sleep(0.1)
+        fixed_location = webdriver(endpoint + "/execute/sync", {"script":
+            "[...document.querySelectorAll('.annotation-caption')].find(x=>x.textContent.includes('bottle_pickup')).click();"
+            "let location=document.getElementById('editLocationSelect'),target=document.getElementById('editTarget');"
+            "let initial={location:location.value,pattern:document.getElementById('editLocationText').hasAttribute('pattern'),"
+            "valid:document.getElementById('editForm').checkValidity()};"
+            "target.value='light_bottle';document.querySelector('#editForm button[type=submit]').click();"
+            "return {...initial,closed:!document.getElementById('editDialog').open}", "args": []})
+        assert fixed_location == {"location": "table", "pattern": False, "valid": True, "closed": True}, fixed_location
+        webdriver(endpoint + "/execute/sync", {"script": "document.getElementById('saveLabels').click()", "args": []})
+        for _ in range(50):
+            saved = json.loads(path.read_text())["annotations"]
+            if len(saved) == 2:
+                break
+            time.sleep(0.1)
+        pickup = next(item for item in saved if item["label"] == "bottle_pickup")
+        assert pickup["location"] == "table" and pickup["target"] == "light_bottle", pickup
         old_path = ViewerTest.root / "s5/label/curl_1.json"
         old = {"schema_version": "0.1", "subject": "s5", "sequence": "curl_1", "fps": 30,
                "annotations": [{**records[0], "label": "curl"}]}
